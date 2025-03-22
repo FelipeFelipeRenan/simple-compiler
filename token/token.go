@@ -1,16 +1,15 @@
 package token
 
-// TokenType representa os diferentes tipos de token
+// TokenType representa os diferentes tipos de tokens.
 type TokenType string
 
-// Token representa um único token gerado pelo lexer
+// Token representa um único token gerado pelo lexer.
 type Token struct {
-	Type TokenType
+	Type   TokenType
 	Lexeme string
 }
 
-
-// tipos de tokens
+// Definição dos tipos de tokens.
 const (
 	ILLEGAL   TokenType = "ILLEGAL"   // Token inválido
 	EOF       TokenType = "EOF"       // Fim do código-fonte
