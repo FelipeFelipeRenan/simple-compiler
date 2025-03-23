@@ -3,19 +3,19 @@ package main
 import (
 	"fmt"
 	"simple-compiler/lexer"
-	"simple-compiler/token"
+	"simple-compiler/parser"
 )
 
 func main() {
-	input := "x = 10 + 5 - 20 + ;"
+	source := "x = 5 + 3"
 
-	l := lexer.New(input)
+	// Tokenizar código-fonte
+	tokens := lexer.Tokenize(source)
 
-	for {
-		tok := l.NextToken()
-		fmt.Printf("Token: %+v\n", tok)
-		if tok.Type == token.EOF {
-			break
-		}
-	}
+	// Criar parser e executar análise
+	p := parser.New(tokens)
+	astNode := p.ParseAssignment()
+
+	// Exibir resultado
+	fmt.Println(astNode.String()) // x = (5 + 3)
 }

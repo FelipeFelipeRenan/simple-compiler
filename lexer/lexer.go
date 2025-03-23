@@ -84,7 +84,7 @@ func (l *Lexer) NextToken() token.Token {
 	default:
 		if unicode.IsLetter(rune(l.ch)) {
 			lexeme := l.readIdentifier()
-			tok = token.Token{Type: token.IDENT, Lexeme: lexeme}
+			tok = token.Token{Type: token.IDENTIFIER, Lexeme: lexeme}
 			return tok
 		} else if unicode.IsDigit(rune(l.ch)) {
 			lexeme := l.readNumber()
@@ -97,4 +97,18 @@ func (l *Lexer) NextToken() token.Token {
 
 	l.readChar() // AVANÇA para o próximo caractere!
 	return tok
+}
+
+func Tokenize(input string)[]token.Token{
+	lexer := New(input)
+	tokens := []token.Token{}
+
+	for{
+		tok := lexer.NextToken()
+		tokens = append(tokens, tok)
+		if tok.Type == token.EOF {
+			break
+		}
+	}
+	return tokens
 }
