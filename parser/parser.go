@@ -9,13 +9,17 @@ import (
 
 // Estrutura que mantem os tokens e a posição atual
 type Parser struct {
-	tokens  []token.Token
-	current int
+	tokens      []token.Token
+	current     int
+	symbolTable *SymbolTable
 }
 
 // New cria um novo parser
 func New(tokens []token.Token) *Parser {
-	return &Parser{tokens: tokens, current: 0}
+	return &Parser{
+		tokens:      tokens,
+		current:     0,
+		symbolTable: NewSymbolTable()}
 }
 
 // currentToken retorna o token atual sem avançar
@@ -81,7 +85,7 @@ func (p *Parser) parseExpression() ast.Expression {
 	return left
 }
 
-// função para analise de atribuições
+// função para analise de atribuições e adiciona as variaveies na tabela de simbolos
 func (p *Parser) ParseAssignment() ast.Statement {
 	if !p.match(token.IDENTIFIER) {
 		fmt.Println("Erro: Esperando um identificador")
@@ -98,6 +102,9 @@ func (p *Parser) ParseAssignment() ast.Statement {
 
 	value := p.parseExpression()
 
+	p.symbolTable.Set(varName, value)
+
+	fmt.Printf("Atribuição: %s = %v\n", varName, value)
 	return &ast.Assignment{
 		Variable: &ast.Identifier{Name: varName},
 		Value:    value,

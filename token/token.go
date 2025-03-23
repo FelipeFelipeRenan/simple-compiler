@@ -11,16 +11,16 @@ type Token struct {
 
 // Definição dos tipos de tokens.
 const (
-	ILLEGAL   TokenType = "ILLEGAL"    // Token inválido
-	EOF       TokenType = "EOF"        // Fim do código-fonte
-	IDENTIFIER     TokenType = "IDENTIFIER" // Identificadores (variáveis, funções)
-	NUMBER    TokenType = "NUMBER"     // Números inteiros
-	PLUS      TokenType = "PLUS"       // +
-	MINUS     TokenType = "MINUS"      // -
-	MULT      TokenType = "MULT"       // *
-	DIV       TokenType = "DIV"        // /
-	ASSIGN    TokenType = "ASSIGN"     // =
-	SEMICOLON TokenType = "SEMICOLON"  // ;
-	LPAREN    TokenType = "LPAREN"     // (
-	RPAREN    TokenType = "RPAREN"     // )
+	ILLEGAL    TokenType = "ILLEGAL"    // Token inválido
+	EOF        TokenType = "EOF"        // Fim do código-fonte
+	IDENTIFIER TokenType = "IDENTIFIER" // Identificadores (variáveis, funções)
+	NUMBER     TokenType = "NUMBER"     // Números inteiros
+	PLUS       TokenType = "PLUS"       // +
+	MINUS      TokenType = "MINUS"      // -
+	MULT       TokenType = "MULT"       // *
+	DIV        TokenType = "DIV"        // /
+	ASSIGN     TokenType = "ASSIGN"     // =
+	SEMICOLON  TokenType = "SEMICOLON"  // ;
+	LPAREN     TokenType = "LPAREN"     // (
+	RPAREN     TokenType = "RPAREN"     // )
 )
