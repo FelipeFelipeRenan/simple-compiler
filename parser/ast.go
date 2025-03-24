@@ -1,16 +1,13 @@
 package parser
 
-import (
-	"fmt"
+import "fmt"
 
-)
-
-// Node representa um nó generico da AST
+// Node representa um nó genérico da AST
 type Node interface {
 	String() string
 }
 
-// Expression representa expressoes na AST
+// Expression representa expressões na AST
 type Expression interface {
 	Node
 	exprNode()
@@ -22,7 +19,7 @@ type Statement interface {
 	stmtNode()
 }
 
-// Identifier representa uma variavel
+// Identifier representa uma variável
 type Identifier struct {
 	Name  string
 	Value ValueType
@@ -31,17 +28,18 @@ type Identifier struct {
 func (i *Identifier) exprNode() {}
 
 func (i *Identifier) String() string {
-	return i.Name
+	return fmt.Sprintf("%s = %v", i.Name, i.Value)
 }
 
-// Number representa um numero na AST
+// Number representa um número na AST
 type Number struct {
 	Value ValueType
 }
 
 func (n *Number) exprNode() {}
+
 func (n *Number) String() string {
-	return fmt.Sprintf("%d", n.Value)
+	return fmt.Sprintf("%v", n.Value)
 }
 
 // BinaryExpression representa operações entre dois operandos
@@ -52,6 +50,7 @@ type BinaryExpression struct {
 }
 
 func (b *BinaryExpression) exprNode() {}
+
 func (b *BinaryExpression) String() string {
 	return fmt.Sprintf("(%s %s %s)", b.Left.String(), b.Operator, b.Right.String())
 }
@@ -63,6 +62,7 @@ type Assignment struct {
 }
 
 func (a *Assignment) stmtNode() {}
+
 func (a *Assignment) String() string {
-	return fmt.Sprintf("%s = %s", a.Variable.String(), a.Value.String())
+	return fmt.Sprintf("%s = %s", a.Variable.Name, a.Value.String())
 }

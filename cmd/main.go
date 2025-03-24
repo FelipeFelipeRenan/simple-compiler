@@ -7,7 +7,8 @@ import (
 )
 
 func main() {
-	source := "x = 1"
+	source := "x = 5 + 3 * 2 - 4 / 2"
+
 
 	// Tokenizar código-fonte
 	tokens := lexer.Tokenize(source)
@@ -17,5 +18,5 @@ func main() {
 	astNode := p.ParseAssignment()
 
 	// Exibir resultado
-	fmt.Println(astNode.String()) // x = (5 + 3)
+	fmt.Println("Atribuição:", astNode.String()) // Agora exibe apenas o número corretamente
 }

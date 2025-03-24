@@ -1,19 +1,19 @@
 package parser
 
+import "fmt"
 
-// tipo suportado pelo compilador
-type Type int
-
+// Definição de tipos
 const (
-	TypeInt Type = iota
-	TypeFloat
-	TypeString
-	TypeBool
-	TypeUnknown // Tipo nao conhecido, gerando um erro
+	TypeInt   = 0
+	TypeFloat = 1
 )
 
-// ValueType representa um valor e seu tipo
+// ValueType representa um valor com seu tipo
 type ValueType struct {
-	Value interface{}
-	Type  Type
+	Value float64
+	Type  int
+}
+
+func (v ValueType) String() string {
+	return fmt.Sprintf("%v", v.Value) // Suporta tanto int quanto float
 }
