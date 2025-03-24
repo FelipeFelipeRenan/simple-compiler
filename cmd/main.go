@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	source := "x = 5 + 3"
+	source := "x = 1"
 
 	// Tokenizar código-fonte
 	tokens := lexer.Tokenize(source)

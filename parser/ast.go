@@ -1,6 +1,9 @@
-package ast
+package parser
 
-import "fmt"
+import (
+	"fmt"
+
+)
 
 // Node representa um nó generico da AST
 type Node interface {
@@ -19,33 +22,35 @@ type Statement interface {
 	stmtNode()
 }
 
-// Identifier representa uma variavel 
+// Identifier representa uma variavel
 type Identifier struct {
-	Name string
+	Name  string
+	Value ValueType
 }
 
-func (i *Identifier) exprNode(){}
+func (i *Identifier) exprNode() {}
 
-func (i *Identifier) String() string{
+func (i *Identifier) String() string {
 	return i.Name
 }
 
 // Number representa um numero na AST
 type Number struct {
-	Value int
+	Value ValueType
 }
 
-func (n *Number) exprNode(){}
-func (n *Number) String()string{
+func (n *Number) exprNode() {}
+func (n *Number) String() string {
 	return fmt.Sprintf("%d", n.Value)
 }
 
 // BinaryExpression representa operações entre dois operandos
 type BinaryExpression struct {
-	Left Expression
+	Left     Expression
 	Operator string
-	Right Expression
+	Right    Expression
 }
+
 func (b *BinaryExpression) exprNode() {}
 func (b *BinaryExpression) String() string {
 	return fmt.Sprintf("(%s %s %s)", b.Left.String(), b.Operator, b.Right.String())
@@ -54,7 +59,7 @@ func (b *BinaryExpression) String() string {
 // Assignment representa uma operação de atribuição
 type Assignment struct {
 	Variable *Identifier
-	Value Expression
+	Value    Expression
 }
 
 func (a *Assignment) stmtNode() {}

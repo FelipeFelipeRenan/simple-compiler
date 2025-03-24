@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"simple-compiler/ast"
 	"simple-compiler/token"
 	"strconv"
 )
@@ -47,36 +46,53 @@ func (p *Parser) match(tokenType token.TokenType) bool {
 
 // Função para analisar numeros e identificadores
 // parsePrimary analisa números e identificadores
-func (p *Parser) parsePrimary() ast.Expression {
+func (p *Parser) parsePrimary() Expression {
 	tok := p.currentToken()
 
 	if tok.Type == token.NUMBER {
 		p.advance()
 
-		value, err := strconv.Atoi(tok.Lexeme)
-		if err != nil {
-			fmt.Printf("Erro ao converter número: %s\n", tok.Lexeme)
-			return nil
+		// verificação se é um tipo inteiro ou float
+		if val, err := strconv.Atoi(tok.Lexeme); err == nil {
+			return &Number{Value: ValueType{Value: val, Type: TypeInt}}
+		} else if val, err := strconv.ParseFloat(tok.Lexeme, 64); err == nil {
+			return &Number{Value: ValueType{Value: val, Type: TypeFloat}}
 		}
-		return &ast.Number{Value: value}
 	}
 
 	if tok.Type == token.IDENTIFIER {
 		p.advance()
-		return &ast.Identifier{Name: tok.Lexeme}
+		if val, exists := p.symbolTable.Get(tok.Lexeme); exists {
+			return &Identifier{Name: tok.Lexeme, Value: val}
+		} else {
+			fmt.Printf("Erro: variavel %s nao foi declarada\n", tok.Lexeme)
+			return nil
+		}
 	}
 
-	fmt.Printf("Erro: token inesperado %s\n", tok.Lexeme)
+	fmt.Printf("Erro: token inesperado: %s", tok.Lexeme)
 	return nil
 }
 
 // função para analisar expressoes matematicas
-func (p *Parser) parseExpression() ast.Expression {
+func (p *Parser) parseExpression() Expression {
 	left := p.parsePrimary()
 	for p.match(token.PLUS) || p.match(token.MINUS) || p.match(token.MULT) || p.match(token.DIV) {
 		operator := p.tokens[p.current-1].Lexeme // Operador
-		right := p.parsePrimary()                // segundo operando
-		left = &ast.BinaryExpression{
+		
+		right := p.parsePrimary() 
+
+		// Garantindo que os tipos sao compativeis
+		leftType := left.(*Number).Value.Type
+		rightType := right.(*Number).Value.Type
+
+		if leftType != rightType {
+			fmt.Println("Erro: operação com tipos incompativeis")
+			return nil
+		}
+		
+		// segundo operando
+		left = &BinaryExpression{
 			Left:     left,
 			Operator: operator,
 			Right:    right,
@@ -86,7 +102,7 @@ func (p *Parser) parseExpression() ast.Expression {
 }
 
 // função para analise de atribuições e adiciona as variaveies na tabela de simbolos
-func (p *Parser) ParseAssignment() ast.Statement {
+func (p *Parser) ParseAssignment() Statement {
 	if !p.match(token.IDENTIFIER) {
 		fmt.Println("Erro: Esperando um identificador")
 		return nil
@@ -105,8 +121,8 @@ func (p *Parser) ParseAssignment() ast.Statement {
 	p.symbolTable.Set(varName, value)
 
 	fmt.Printf("Atribuição: %s = %v\n", varName, value)
-	return &ast.Assignment{
-		Variable: &ast.Identifier{Name: varName},
+	return &Assignment{
+		Variable: &Identifier{Name: varName},
 		Value:    value,
 	}
 }
