@@ -50,22 +50,32 @@ type IfStatement struct {
 }
 
 func (i *IfStatement) stmtNode() {}
+// parser/ast.go
 func (i *IfStatement) String() string {
-    bodyStr := ""
+    if i == nil {
+        return "<nil IfStatement>"
+    }
+    
+    var sb strings.Builder
+    fmt.Fprintf(&sb, "if (%s) {", i.Condition.String())
+    
     for _, stmt := range i.Body {
-        bodyStr += "\n" + indent(stmt.String())
-    }
-    
-    elseStr := ""
-    if len(i.ElseBody) > 0 {
-        elseStr += "\nelse {"
-        for _, stmt := range i.ElseBody {
-            elseStr += "\n" + indent(stmt.String())
+        if stmt != nil {
+            fmt.Fprintf(&sb, "\n%s", indent(stmt.String()))
         }
-        elseStr += "\n}"
     }
     
-    return fmt.Sprintf("if (%s) {%s%s\n}", i.Condition.String(), bodyStr, elseStr)
+    if len(i.ElseBody) > 0 {
+        fmt.Fprint(&sb, "\n} else {")
+        for _, stmt := range i.ElseBody {
+            if stmt != nil {
+                fmt.Fprintf(&sb, "\n%s", indent(stmt.String()))
+            }
+        }
+    }
+    
+    fmt.Fprint(&sb, "\n}")
+    return sb.String()
 }
 // WhileStatement representa um loop while
 type WhileStatement struct {

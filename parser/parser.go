@@ -207,146 +207,122 @@ func (p *Parser) ParseAssignment() Statement {
 
 // parseIfStatement analisa comandos `if` com suporte a `else`
 
-func (p *Parser) parseIfStatement() *IfStatement {
-	p.nextToken() // Pula o 'if'
+func (p *Parser) parseIfStatement() Statement {
+    ifStmt := &IfStatement{}
+    p.nextToken() // Pula o 'if'
 
-	// Parse condition
-	if p.current.Type != token.LPAREN {
-		p.addError("Esperado '(' após 'if'")
-		return nil
-	}
-	p.nextToken()
+    // Parse condition
+    if p.current.Type != token.LPAREN {
+        p.addError("Esperado '(' após 'if'")
+        return nil
+    }
+    p.nextToken()
 
-	condition := p.parseExpression()
-	if condition == nil {
-		p.addError("Condição inválida após 'if'")
-		return nil
-	}
+    ifStmt.Condition = p.parseExpression()
+    if ifStmt.Condition == nil {
+        p.addError("Condição inválida após 'if'")
+        return nil
+    }
 
-	if p.current.Type != token.RPAREN {
-		p.addError("Esperado ')' após condição do 'if'")
-		return nil
-	}
-	p.nextToken()
+    if p.current.Type != token.RPAREN {
+        p.addError("Esperado ')' após condição do 'if'")
+        return nil
+    }
+    p.nextToken()
 
-	// Parse body
-	if p.current.Type != token.LBRACE {
-		p.addError("Esperado '{' após condição do 'if'")
-		return nil
-	}
-	p.nextToken()
+    // Parse body
+    if p.current.Type != token.LBRACE {
+        p.addError("Esperado '{' após condição do 'if'")
+        return nil
+    }
+    p.nextToken()
 
-	var body []Statement
-	for p.current.Type != token.RBRACE && !p.AtEnd() {
-		stmt := p.ParseStatement()
-		if stmt != nil {
-			body = append(body, stmt)
-		}
-		// Não chama p.nextToken() aqui - ParseStatement já avança os tokens
-	}
+    for p.current.Type != token.RBRACE && !p.AtEnd() {
+        stmt := p.ParseStatement()
+        if stmt != nil {
+            ifStmt.Body = append(ifStmt.Body, stmt)
+        }
+    }
 
-	if p.current.Type != token.RBRACE {
-		p.addError("Esperado '}' ao final do bloco 'if'")
-		return nil
-	}
-	p.nextToken()
+    if p.current.Type != token.RBRACE {
+        p.addError("Esperado '}' ao final do bloco 'if'")
+        return nil
+    }
+    p.nextToken()
 
-	// Parse else (se existir)
-	var elseBody []Statement
-	if p.current.Type == token.ELSE {
-		p.nextToken()
+    // Parse else clause
+    if p.current.Type == token.ELSE {
+        p.nextToken()
+        
+        if p.current.Type == token.LBRACE {
+            p.nextToken()
+            
+            for p.current.Type != token.RBRACE && !p.AtEnd() {
+                stmt := p.ParseStatement()
+                if stmt != nil {
+                    ifStmt.ElseBody = append(ifStmt.ElseBody, stmt)
+                }
+            }
+            
+            if p.current.Type != token.RBRACE {
+                p.addError("Esperado '}' ao final do bloco 'else'")
+                return nil
+            }
+            p.nextToken()
+        } else if p.current.Type == token.IF {
+            // Else if
+            ifStmt.ElseBody = append(ifStmt.ElseBody, p.parseIfStatement())
+        }
+    }
 
-		if p.current.Type == token.IF {
-			// Else if - trata como um if normal e adiciona ao elseBody
-			elseIf := p.parseIfStatement()
-			if elseIf != nil {
-				elseBody = append(elseBody, elseIf)
-			}
-		} else if p.current.Type == token.LBRACE {
-			p.nextToken()
-
-			for p.current.Type != token.RBRACE && !p.AtEnd() {
-				stmt := p.ParseStatement()
-				if stmt != nil {
-					elseBody = append(elseBody, stmt)
-				}
-			}
-
-			if p.current.Type != token.RBRACE {
-				p.addError("Esperado '}' ao final do bloco 'else'")
-				return nil
-			}
-			p.nextToken()
-		} else {
-			p.addError("Esperado '{' ou 'if' após 'else'")
-			return nil
-		}
-	}
-
-	return &IfStatement{
-		Condition: condition,
-		Body:      body,
-		ElseBody:  elseBody,
-	}
+    return ifStmt
 }
-
 // parseWhileStatement analisa o comando `while`
 // Espera-se que a estrutura seja: while (condição) { corpo }
-func (p *Parser) parseWhileStatement() *WhileStatement {
-	// Pula a palavra-chave "while"
-	p.nextToken()
+func (p *Parser) parseWhileStatement() Statement {
+    whileStmt := &WhileStatement{}
+    p.nextToken() // Pula o 'while'
 
-	// Lê a condição entre parênteses
-	if p.current.Type != token.LPAREN {
-		fmt.Println("Erro: esperado '(' após 'while'")
-		return nil
-	}
-	p.nextToken()
+    // Parse condition
+    if p.current.Type != token.LPAREN {
+        p.addError("Esperado '(' após 'while'")
+        return nil
+    }
+    p.nextToken()
 
-	// Condição da expressão
-	condition := p.parseExpression()
-	if condition == nil {
-		fmt.Println("Erro: esperado condição válida após '('")
-		return nil
-	}
+    whileStmt.Condition = p.parseExpression()
+    if whileStmt.Condition == nil {
+        p.addError("Condição inválida após 'while'")
+        return nil
+    }
 
-	// Espera o fechamento do parêntese
-	if p.current.Type != token.RPAREN {
-		fmt.Println("Erro: esperado ')' após condição")
-		return nil
-	}
-	p.nextToken()
+    if p.current.Type != token.RPAREN {
+        p.addError("Esperado ')' após condição do 'while'")
+        return nil
+    }
+    p.nextToken()
 
-	// Espera pelo bloco de código
-	if p.current.Type != token.LBRACE {
-		fmt.Println("Erro: esperado '{' após condição do 'while'")
-		return nil
-	}
-	p.nextToken()
+    // Parse body
+    if p.current.Type != token.LBRACE {
+        p.addError("Esperado '{' após condição do 'while'")
+        return nil
+    }
+    p.nextToken()
 
-	// Lê o corpo do while
-	var body []Statement
-	for p.current.Type != token.RBRACE && p.current.Type != token.EOF {
-		stmt := p.ParseStatement()
-		if stmt != nil {
-			body = append(body, stmt)
-		} else {
-			p.Skip()
-		}
-	}
+    for p.current.Type != token.RBRACE && !p.AtEnd() {
+        stmt := p.ParseStatement()
+        if stmt != nil {
+            whileStmt.Body = append(whileStmt.Body, stmt)
+        }
+    }
 
-	// Espera o fechamento do bloco
-	if p.current.Type != token.RBRACE {
-		fmt.Println("Erro: esperado '}' ao final do bloco 'while'")
-		return nil
-	}
-	p.nextToken()
+    if p.current.Type != token.RBRACE {
+        p.addError("Esperado '}' ao final do bloco 'while'")
+        return nil
+    }
+    p.nextToken()
 
-	// Retorna a estrutura do while
-	return &WhileStatement{
-		Condition: condition,
-		Body:      body,
-	}
+    return whileStmt
 }
 
 // parseForStatement analisa o `for`

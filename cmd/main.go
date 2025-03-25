@@ -44,11 +44,10 @@ func main() {
 
 	// Exibir AST
 	fmt.Println("AST gerada:")
+	// cmd/main.go
 	for _, stmt := range statements {
 		if stmt != nil {
-			fmt.Println(stmt.String()) // Certifique-se que os statements implementam o método String()
-		} else {
-			fmt.Println("Erro: declaração inválida encontrada.")
+			fmt.Println(stmt.String())
 		}
 	}
 }
