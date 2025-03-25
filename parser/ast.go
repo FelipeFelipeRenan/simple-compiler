@@ -51,21 +51,22 @@ type IfStatement struct {
 
 func (i *IfStatement) stmtNode() {}
 func (i *IfStatement) String() string {
-	bodyStr := ""
-	for _, stmt := range i.Body {
-		bodyStr += "\n    " + stmt.String()
-	}
-	elseStr := ""
-	if len(i.ElseBody) > 0 {
-		elseStr += "\nelse {"
-		for _, stmt := range i.ElseBody {
-			elseStr += "\n    " + stmt.String()
-		}
-		elseStr += "\n}"
-	}
-	return fmt.Sprintf("if (%s) {%s\n}%s", i.Condition.String(), bodyStr, elseStr)
+    bodyStr := ""
+    for _, stmt := range i.Body {
+        bodyStr += "\n" + indent(stmt.String())
+    }
+    
+    elseStr := ""
+    if len(i.ElseBody) > 0 {
+        elseStr += "\nelse {"
+        for _, stmt := range i.ElseBody {
+            elseStr += "\n" + indent(stmt.String())
+        }
+        elseStr += "\n}"
+    }
+    
+    return fmt.Sprintf("if (%s) {%s%s\n}", i.Condition.String(), bodyStr, elseStr)
 }
-
 // WhileStatement representa um loop while
 type WhileStatement struct {
 	Condition Expression
@@ -74,12 +75,13 @@ type WhileStatement struct {
 
 func (w *WhileStatement) stmtNode() {}
 func (w *WhileStatement) String() string {
-	bodyStr := ""
-	for _, stmt := range w.Body {
-		bodyStr += "\n    " + stmt.String()
-	}
-	return fmt.Sprintf("while (%s) {%s\n}", w.Condition.String(), bodyStr)
+    bodyStr := ""
+    for _, stmt := range w.Body {
+        bodyStr += "\n" + indent(stmt.String())
+    }
+    return fmt.Sprintf("while (%s) {%s\n}", w.Condition.String(), bodyStr)
 }
+
 
 // ForStatement representa um loop for
 type ForStatement struct {
@@ -91,11 +93,12 @@ type ForStatement struct {
 
 func (f *ForStatement) stmtNode() {}
 func (f *ForStatement) String() string {
-	bodyStr := ""
-	for _, stmt := range f.Body {
-		bodyStr += "\n    " + stmt.String()
-	}
-	return fmt.Sprintf("for (%s; %s; %s) {%s\n}", f.Init.String(), f.Condition.String(), f.Update.String(), bodyStr)
+    bodyStr := ""
+    for _, stmt := range f.Body {
+        bodyStr += "\n" + indent(stmt.String())
+    }
+    return fmt.Sprintf("for (%s; %s; %s) {%s\n}", 
+        f.Init.String(), f.Condition.String(), f.Update.String(), bodyStr)
 }
 
 // BinaryExpression representa operações entre dois operandos
@@ -118,8 +121,9 @@ type AssignmentStatement struct {
 
 func (a *AssignmentStatement) stmtNode() {}
 func (a *AssignmentStatement) String() string {
-	return fmt.Sprintf("(%s = %s)", a.Name, a.Value.String())
+    return fmt.Sprintf("%s = %s;", a.Name, a.Value.String())
 }
+
 
 // VariableDeclaration representa declaração de variável
 type VariableDeclaration struct {
@@ -129,11 +133,11 @@ type VariableDeclaration struct {
 }
 
 func (vd *VariableDeclaration) stmtNode() {}
-func (vd *VariableDeclaration) String() string {
-    if vd.Value != nil {
-        return fmt.Sprintf("var %s %s = %s", vd.Name, vd.Type, vd.Value.String())
+func (v *VariableDeclaration) String() string {
+    if v.Value != nil {
+        return fmt.Sprintf("var %s %s = %s;", v.Name, v.Type, v.Value.String())
     }
-    return fmt.Sprintf("var %s %s", vd.Name, vd.Type)
+    return fmt.Sprintf("var %s %s;", v.Name, v.Type)
 }
 
 // ReturnStatement representa um retorno de função
@@ -180,4 +184,9 @@ type ExpressionStatement struct {
 func (es *ExpressionStatement) stmtNode() {}
 func (es *ExpressionStatement) String() string {
     return es.Expression.String()
+}
+
+// Função auxiliar para indentação
+func indent(s string) string {
+    return "    " + strings.ReplaceAll(s, "\n", "\n    ")
 }
