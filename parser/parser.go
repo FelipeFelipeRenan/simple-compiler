@@ -6,196 +6,220 @@ import (
 	"strconv"
 )
 
-// Estrutura que mantém os tokens e a posição atual
+// Parser estrutura que gerencia a análise sintática
 type Parser struct {
-	tokens      []token.Token
-	current     int
-	symbolTable *SymbolTable
+	tokens  []token.Token
+	pos     int
+	current token.Token
 }
 
-// New cria um novo parser
+// New cria um novo Parser
 func New(tokens []token.Token) *Parser {
-	return &Parser{
-		tokens:      tokens,
-		current:     0,
-		symbolTable: NewSymbolTable(),
+	p := &Parser{tokens: tokens, pos: 0}
+	p.nextToken() // Inicializa o primeiro token
+	return p
+}
+
+// AtEnd verifica se chegou ao final dos tokens
+func (p *Parser) AtEnd() bool {
+	return p.current.Type == token.EOF
+}
+
+// nextToken avança para o próximo token
+func (p *Parser) nextToken() {
+	if p.pos < len(p.tokens) {
+		p.current = p.tokens[p.pos]
+		p.pos++
+	} else {
+		p.current = token.Token{Type: token.EOF, Lexeme: ""}
 	}
 }
 
-// currentToken retorna o token atual sem avançar
-func (p *Parser) currentToken() token.Token {
-	if p.current < len(p.tokens) {
-		return p.tokens[p.current]
-	}
-	return token.Token{Type: token.EOF, Lexeme: ""}
-}
-
-// Advance move para o próximo token
-func (p *Parser) advance() {
-	if p.current < len(p.tokens) {
-		p.current++
+// Skip avança para evitar loops infinitos em caso de erro
+func (p *Parser) Skip() {
+	if !p.AtEnd() {
+		p.nextToken()
 	}
 }
 
-// match verifica se o token atual é do tipo esperado e avança
-func (p *Parser) match(tokenType token.TokenType) bool {
-	if p.currentToken().Type == tokenType {
-		p.advance()
-		return true
-	}
-	return false
-}
-
-// parsePrimary analisa números e identificadores
-func (p *Parser) parsePrimary() Expression {
-	tok := p.currentToken()
-
-	if tok.Type == token.NUMBER {
-		p.advance()
-		val, err := strconv.ParseFloat(tok.Lexeme, 64)
-		if err == nil {
-			return &Number{Value: ValueType{Value: val, Type: TypeFloat}}
-		}
-		fmt.Printf("Erro: número inválido %s\n", tok.Lexeme)
-		return nil
-	}
-
-	if tok.Type == token.IDENTIFIER {
-		p.advance()
-		if val, exists := p.symbolTable.Get(tok.Lexeme); exists {
-			if expr, ok := val.(Expression); ok {
-				return expr
-			}
-			fmt.Printf("Erro: variável %s contém um tipo inválido\n", tok.Lexeme)
-			return nil
-		}
-		fmt.Printf("Erro: variável %s não foi declarada\n", tok.Lexeme)
-		return nil
-	}
-
-	fmt.Printf("Erro: token inesperado: %s\n", tok.Lexeme)
-	return nil
-}
-
-// parseFactor analisa multiplicação e divisão com precedência
-func (p *Parser) parseFactor() Expression {
-	left := p.parsePrimary()
-	if left == nil {
-		return nil
-	}
-
-	for p.match(token.MULT) || p.match(token.DIV) {
-		operator := p.tokens[p.current-1].Lexeme
-		right := p.parsePrimary()
-		if right == nil {
-			return nil
-		}
-		left = &BinaryExpression{Left: left, Operator: operator, Right: right}
-	}
-
-	return left
-}
-
-// parseExpression analisa adição e subtração respeitando a precedência
+// parseExpression analisa expressões (números, identificadores, expressões binárias)
+// parseExpression trata a expressão inteira, respeitando a precedência.
 func (p *Parser) parseExpression() Expression {
-	left := p.parseFactor()
-	if left == nil {
-		return nil
-	}
-
-	for p.match(token.PLUS) || p.match(token.MINUS) {
-		operator := p.tokens[p.current-1].Lexeme
-		right := p.parseFactor()
-		if right == nil {
-			return nil
-		}
-		left = &BinaryExpression{Left: left, Operator: operator, Right: right}
-	}
-
-	return left
+    return p.parseComparison() // Começa com comparação, que tem a menor precedência
 }
 
-// parseAssignment analisa atribuições e adiciona variáveis à tabela de símbolos
+// parseComparison lida com operadores de comparação: >, <, >=, <=, ==.
+func (p *Parser) parseComparison() Expression {
+    left := p.parseAddition() // Inicia com a análise de adição (que tem precedência maior)
+
+    for p.current.Type == token.GT || p.current.Type == token.LT ||
+        p.current.Type == token.GTE || p.current.Type == token.LTE ||
+        p.current.Type == token.EQ {
+
+        op := p.current.Lexeme
+        p.nextToken()
+        right := p.parseAddition() // Operação de adição (que tem maior precedência que comparação)
+
+        left = &BinaryExpression{Left: left, Operator: op, Right: right}
+    }
+
+    return left
+}
+
+// parseAddition lida com operadores + e -.
+func (p *Parser) parseAddition() Expression {
+    left := p.parseMultiplication() // Começa com multiplicação (maior precedência)
+
+    for p.current.Type == token.PLUS || p.current.Type == token.MINUS {
+        op := p.current.Lexeme
+        p.nextToken()
+        right := p.parseMultiplication()
+
+        left = &BinaryExpression{Left: left, Operator: op, Right: right}
+    }
+
+    return left
+}
+
+// parseMultiplication lida com * e / (maior precedência).
+func (p *Parser) parseMultiplication() Expression {
+    left := p.parsePrimary() // Inicia com o valor primário (número ou identificador)
+
+    for p.current.Type == token.MULT || p.current.Type == token.DIV {
+        op := p.current.Lexeme
+        p.nextToken()
+        right := p.parsePrimary() // Análise do valor primário para multiplicação ou divisão
+
+        left = &BinaryExpression{Left: left, Operator: op, Right: right}
+    }
+
+    return left
+}
+
+// parsePrimary lida com números, identificadores e expressões entre parênteses.
+func (p *Parser) parsePrimary() Expression {
+    switch p.current.Type {
+    case token.NUMBER:
+        value, err := strconv.ParseFloat(p.current.Lexeme, 64)
+        if err != nil {
+            fmt.Printf("Erro ao converter número: %v\n", err)
+            return nil
+        }
+        expr := &Number{Value: value}
+        p.nextToken()
+        return expr
+
+    case token.IDENTIFIER:
+        expr := &Identifier{Name: p.current.Lexeme}
+        p.nextToken()
+        return expr
+
+    case token.LPAREN:
+        p.nextToken()
+        expr := p.parseExpression() // Expressão dentro de parênteses
+        if p.current.Type != token.RPAREN {
+            fmt.Println("Erro: esperado ')' após expressão")
+            return nil
+        }
+        p.nextToken()
+        return expr
+
+    default:
+        fmt.Printf("Erro: token inesperado %s\n", p.current.Lexeme)
+        return nil
+    }
+}
+
+// ParseStatement analisa comandos como atribuições e estruturas condicionais
+func (p *Parser) ParseStatement() Statement {
+	switch p.current.Type {
+	case token.IDENTIFIER:
+		return p.ParseAssignment()
+
+	case token.IF:
+		return p.parseIfStatement()
+
+	default:
+		fmt.Printf("Erro: declaração inválida com token %s\n", p.current.Lexeme)
+		return nil
+	}
+}
+
+// ParseAssignment analisa expressões de atribuição (ex: x = 10)
 func (p *Parser) ParseAssignment() Statement {
-	if !p.match(token.IDENTIFIER) {
-		fmt.Println("Erro: Esperando um identificador")
+	name := p.current.Lexeme
+	p.nextToken()
+
+	if p.current.Type != token.ASSIGN {
+		fmt.Println("Erro: esperado '=' após identificador")
 		return nil
 	}
-
-	varName := p.tokens[p.current-1].Lexeme
-
-	if !p.match(token.ASSIGN) {
-		fmt.Println("Erro: Esperando '='")
-		return nil
-	}
+	p.nextToken()
 
 	value := p.parseExpression()
 	if value == nil {
-		fmt.Println("Erro: expressão inválida")
+		fmt.Println("Erro: esperado valor após '='")
 		return nil
 	}
 
-	if num, ok := value.(*Number); ok {
-		p.symbolTable.Set(varName, num)
-	} else if expr, ok := value.(*BinaryExpression); ok {
-		evaluated := evaluateExpression(expr)
-		if evaluated != nil {
-			p.symbolTable.Set(varName, evaluated)
-		} else {
-			fmt.Println("Erro: falha ao avaliar expressão matemática")
-			return nil
-		}
-	} else {
-		fmt.Println("Erro: Apenas números e expressões matemáticas são suportados na atribuição")
-		return nil
-	}
-
-	//	fmt.Printf("Atribuição: %s = %v\n", varName, value)
-	return &Assignment{
-		Variable: &Identifier{Name: varName},
-		Value:    value,
-	}
+	return &AssignmentStatement{Name: name, Value: value}
 }
 
-// evaluateExpression avalia expressões matemáticas recursivamente
-func evaluateExpression(expr Expression) *Number {
-	switch e := expr.(type) {
-	case *Number:
-		return e
-	case *BinaryExpression:
-		left := evaluateExpression(e.Left)
-		right := evaluateExpression(e.Right)
+// parseIfStatement analisa comandos `if`
+func (p *Parser) parseIfStatement() *IfStatement {
+	p.nextToken() // Consumir "if"
 
-		if left == nil || right == nil {
-			fmt.Println("Erro: Apenas números são suportados em expressões matemáticas")
-			return nil
-		}
-
-		leftVal := left.Value.Value
-		rightVal := right.Value.Value
-
-		var result float64
-		switch e.Operator {
-		case "+":
-			result = leftVal + rightVal
-		case "-":
-			result = leftVal - rightVal
-		case "*":
-			result = leftVal * rightVal
-		case "/":
-			if rightVal == 0 {
-				fmt.Println("Erro: divisão por zero")
-				return nil
-			}
-			result = leftVal / rightVal
-		default:
-			fmt.Println("Erro: Operador desconhecido")
-			return nil
-		}
-
-		return &Number{Value: ValueType{Value: result, Type: TypeFloat}}
-	default:
-		fmt.Println("Erro: Expressão inválida")
+	condition := p.parseExpression()
+	if condition == nil {
+		fmt.Println("Erro: esperado condição válida após 'if'")
 		return nil
 	}
+
+	// Verificar se há '{' antes do bloco
+	if p.current.Type != token.LBRACE {
+		fmt.Printf("Erro: esperado '{' após condição, mas encontrado '%s'\n", p.current.Lexeme)
+		return nil
+	}
+	p.nextToken() // Consumir '{'
+
+	var body []Statement
+	for p.current.Type != token.RBRACE && p.current.Type != token.EOF {
+		stmt := p.ParseStatement()
+		if stmt != nil {
+			body = append(body, stmt)
+		} else {
+			p.Skip() // Evitar erro de parsing travar tudo
+		}
+	}
+
+	// Certificar que temos um '}'
+	if p.current.Type != token.RBRACE {
+		fmt.Println("Erro: esperado '}' ao final do bloco 'if'")
+		return nil
+	}
+	p.nextToken() // Consumir '}'
+
+	// Se não houver corpo dentro do if, retorna erro
+	if len(body) == 0 {
+		fmt.Println("Erro: bloco 'if' vazio")
+		return nil
+	}
+
+	return &IfStatement{Condition: condition, Body: body}
+}
+
+// Parse inicia o processo de parsing e retorna a AST
+func (p *Parser) Parse() []Statement {
+	var statements []Statement
+
+	for !p.AtEnd() {
+		stmt := p.ParseStatement()
+		if stmt != nil {
+			statements = append(statements, stmt)
+		} else {
+			p.Skip() // Evita erro de parsing travar tudo
+		}
+	}
+
+	return statements
 }

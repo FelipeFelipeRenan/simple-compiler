@@ -2,21 +2,39 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"simple-compiler/lexer"
 	"simple-compiler/parser"
+	"simple-compiler/token"
 )
 
 func main() {
-	source := "x = 5 + 3 * 2 - 4 / 2"
+	fileName := "input.txt"
+	source, err := os.ReadFile(fileName)
+	if err != nil {
+		fmt.Println("Erro ao ler arquivo:", err)
+		os.Exit(1)
+	}
 
+	// Criar lexer
+	l := lexer.New(string(source))
 
-	// Tokenizar código-fonte
-	tokens := lexer.Tokenize(source)
+	// Coletar tokens
+	var tokens []token.Token
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.EOF {
+			break
+		}
+		tokens = append(tokens, tok)
+	}
 
-	// Criar parser e executar análise
+	// Criar parser e processar declarações
 	p := parser.New(tokens)
-	astNode := p.ParseAssignment()
+	statements := p.Parse()
 
-	// Exibir resultado
-	fmt.Println("Atribuição:", astNode.String()) // Agora exibe apenas o número corretamente
+	// Exibir AST
+	for _, stmt := range statements {
+		fmt.Println(stmt.String())
+	}
 }

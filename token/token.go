@@ -23,4 +23,13 @@ const (
 	SEMICOLON  TokenType = "SEMICOLON"  // ;
 	LPAREN     TokenType = "LPAREN"     // (
 	RPAREN     TokenType = "RPAREN"     // )
+	LBRACE     TokenType = "LBRACE"     // {
+	RBRACE     TokenType = "RBRACE"     // }
+	IF         TokenType = "IF"         // if
+	ELSE       TokenType = "ELSE"       // else
+	GTE        TokenType = "GTE"        // >=
+	LTE        TokenType = "LTE"        // <=
+	GT         TokenType = "GT"         // >
+	LT         TokenType = "LT"         // <
+	EQ         TokenType = "EQ"         // == (igualdade)
 )

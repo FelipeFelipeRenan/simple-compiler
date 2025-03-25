@@ -22,24 +22,42 @@ type Statement interface {
 // Identifier representa uma variável
 type Identifier struct {
 	Name  string
-	Value ValueType
+	Value interface{}
 }
 
 func (i *Identifier) exprNode() {}
+func (i *Identifier) stmtNode() {}
+
 
 func (i *Identifier) String() string {
-	return fmt.Sprintf("%s = %v", i.Name, i.Value)
+	return fmt.Sprintf("%s", i.Name)
 }
 
 // Number representa um número na AST
 type Number struct {
-	Value ValueType
+	Value float64
 }
 
 func (n *Number) exprNode() {}
 
 func (n *Number) String() string {
 	return fmt.Sprintf("%v", n.Value)
+}
+
+// IfStatement representa uma estrutura condicional
+type IfStatement struct {
+	Condition Expression
+	Body      []Statement
+}
+
+func (i *IfStatement) stmtNode() {}
+
+func (i *IfStatement) String() string {
+	bodyStr := ""
+	for _, stmt := range i.Body {
+		bodyStr += "\n    " + stmt.String()
+	}
+	return fmt.Sprintf("if (%s) {%s\n}", i.Condition.String(), bodyStr)
 }
 
 // BinaryExpression representa operações entre dois operandos
@@ -55,14 +73,15 @@ func (b *BinaryExpression) String() string {
 	return fmt.Sprintf("(%s %s %s)", b.Left.String(), b.Operator, b.Right.String())
 }
 
-// Assignment representa uma operação de atribuição
-type Assignment struct {
-	Variable *Identifier
-	Value    Expression
+// AssignmentStatement representa uma atribuição de variável na AST
+// AssignmentStatement representa uma atribuição de variável
+type AssignmentStatement struct {
+	Name  string
+	Value Expression
 }
 
-func (a *Assignment) stmtNode() {}
+func (a *AssignmentStatement) stmtNode() {}
 
-func (a *Assignment) String() string {
-	return fmt.Sprintf("%s = %s", a.Variable.Name, a.Value.String())
+func (a *AssignmentStatement) String() string {
+	return fmt.Sprintf("(%s = %s)", a.Name, a.Value.String())
 }

@@ -8,9 +8,9 @@ import (
 // Lexer representa o analisador léxico
 type Lexer struct {
 	input        string
-	position     int  // Posição atual no input
-	readPosition int  // Próxima posição a ser lida
-	ch           byte // Caractere atual
+	position     int
+	readPosition int
+	ch           byte
 }
 
 // New cria um novo lexer
@@ -23,7 +23,7 @@ func New(input string) *Lexer {
 // Avança para o próximo caractere
 func (l *Lexer) readChar() {
 	if l.readPosition >= len(l.input) {
-		l.ch = 0 // Fim do input
+		l.ch = 0
 	} else {
 		l.ch = l.input[l.readPosition]
 	}
@@ -31,14 +31,20 @@ func (l *Lexer) readChar() {
 	l.readPosition++
 }
 
-// Avança e ignora espaços em branco
+// Pula espaços em branco
 func (l *Lexer) skipWhitespace() {
 	for unicode.IsSpace(rune(l.ch)) {
 		l.readChar()
 	}
 }
 
-// Lê um identificador (variável, palavra-chave)
+// Palavras-chave
+var keywords = map[string]token.TokenType{
+	"if":   token.IF,
+	"else": token.ELSE,
+}
+
+// Lê um identificador e verifica se é uma palavra-chave
 func (l *Lexer) readIdentifier() string {
 	start := l.position
 	for unicode.IsLetter(rune(l.ch)) {
@@ -54,6 +60,14 @@ func (l *Lexer) readNumber() string {
 		l.readChar()
 	}
 	return l.input[start:l.position]
+}
+
+// Lê o próximo caractere sem avançar
+func (l *Lexer) peekChar() byte {
+	if l.readPosition >= len(l.input) {
+		return 0
+	}
+	return l.input[l.readPosition]
 }
 
 // Próximo token do input
@@ -72,19 +86,46 @@ func (l *Lexer) NextToken() token.Token {
 	case '/':
 		tok = token.Token{Type: token.DIV, Lexeme: "/"}
 	case '=':
-		tok = token.Token{Type: token.ASSIGN, Lexeme: "="}
+		if l.peekChar() == '=' {
+			l.readChar()
+			tok = token.Token{Type: token.EQ, Lexeme: "=="}
+		} else {
+			tok = token.Token{Type: token.ASSIGN, Lexeme: "="}
+		}
+	case '>':
+		if l.peekChar() == '=' {
+			l.readChar()
+			tok = token.Token{Type: token.GTE, Lexeme: ">="}
+		} else {
+			tok = token.Token{Type: token.GT, Lexeme: ">"}
+		}
+	case '<':
+		if l.peekChar() == '=' {
+			l.readChar()
+			tok = token.Token{Type: token.LTE, Lexeme: "<="}
+		} else {
+			tok = token.Token{Type: token.LT, Lexeme: "<"}
+		}
 	case ';':
 		tok = token.Token{Type: token.SEMICOLON, Lexeme: ";"}
 	case '(':
 		tok = token.Token{Type: token.LPAREN, Lexeme: "("}
 	case ')':
 		tok = token.Token{Type: token.RPAREN, Lexeme: ")"}
+	case '{':
+		tok = token.Token{Type: token.LBRACE, Lexeme: "{"}
+	case '}':
+		tok = token.Token{Type: token.RBRACE, Lexeme: "}"}
 	case 0:
 		tok = token.Token{Type: token.EOF, Lexeme: ""}
 	default:
 		if unicode.IsLetter(rune(l.ch)) {
 			lexeme := l.readIdentifier()
-			tok = token.Token{Type: token.IDENTIFIER, Lexeme: lexeme}
+			tokType := token.IDENTIFIER
+			if keyword, ok := keywords[lexeme]; ok {
+				tokType = keyword
+			}
+			tok = token.Token{Type: tokType, Lexeme: lexeme}
 			return tok
 		} else if unicode.IsDigit(rune(l.ch)) {
 			lexeme := l.readNumber()
@@ -95,20 +136,6 @@ func (l *Lexer) NextToken() token.Token {
 		}
 	}
 
-	l.readChar() // AVANÇA para o próximo caractere!
+	l.readChar()
 	return tok
-}
-
-func Tokenize(input string)[]token.Token{
-	lexer := New(input)
-	tokens := []token.Token{}
-
-	for{
-		tok := lexer.NextToken()
-		tokens = append(tokens, tok)
-		if tok.Type == token.EOF {
-			break
-		}
-	}
-	return tokens
 }
