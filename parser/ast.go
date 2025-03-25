@@ -21,14 +21,10 @@ type Statement interface {
 
 // Identifier representa uma variável
 type Identifier struct {
-	Name  string
-	Value interface{}
+	Name string
 }
 
 func (i *Identifier) exprNode() {}
-func (i *Identifier) stmtNode() {}
-
-
 func (i *Identifier) String() string {
 	return fmt.Sprintf("%s", i.Name)
 }
@@ -39,7 +35,6 @@ type Number struct {
 }
 
 func (n *Number) exprNode() {}
-
 func (n *Number) String() string {
 	return fmt.Sprintf("%v", n.Value)
 }
@@ -48,16 +43,56 @@ func (n *Number) String() string {
 type IfStatement struct {
 	Condition Expression
 	Body      []Statement
+	ElseBody  []Statement
 }
 
 func (i *IfStatement) stmtNode() {}
-
 func (i *IfStatement) String() string {
 	bodyStr := ""
 	for _, stmt := range i.Body {
 		bodyStr += "\n    " + stmt.String()
 	}
-	return fmt.Sprintf("if (%s) {%s\n}", i.Condition.String(), bodyStr)
+	elseStr := ""
+	if len(i.ElseBody) > 0 {
+		elseStr += "\nelse {"
+		for _, stmt := range i.ElseBody {
+			elseStr += "\n    " + stmt.String()
+		}
+		elseStr += "\n}"
+	}
+	return fmt.Sprintf("if (%s) {%s\n}%s", i.Condition.String(), bodyStr, elseStr)
+}
+
+// WhileStatement representa um loop while
+type WhileStatement struct {
+	Condition Expression
+	Body      []Statement
+}
+
+func (w *WhileStatement) stmtNode() {}
+func (w *WhileStatement) String() string {
+	bodyStr := ""
+	for _, stmt := range w.Body {
+		bodyStr += "\n    " + stmt.String()
+	}
+	return fmt.Sprintf("while (%s) {%s\n}", w.Condition.String(), bodyStr)
+}
+
+// ForStatement representa um loop for
+type ForStatement struct {
+	Init      Statement
+	Condition Expression
+	Update    Statement
+	Body      []Statement
+}
+
+func (f *ForStatement) stmtNode() {}
+func (f *ForStatement) String() string {
+	bodyStr := ""
+	for _, stmt := range f.Body {
+		bodyStr += "\n    " + stmt.String()
+	}
+	return fmt.Sprintf("for (%s; %s; %s) {%s\n}", f.Init.String(), f.Condition.String(), f.Update.String(), bodyStr)
 }
 
 // BinaryExpression representa operações entre dois operandos
@@ -68,12 +103,10 @@ type BinaryExpression struct {
 }
 
 func (b *BinaryExpression) exprNode() {}
-
 func (b *BinaryExpression) String() string {
 	return fmt.Sprintf("(%s %s %s)", b.Left.String(), b.Operator, b.Right.String())
 }
 
-// AssignmentStatement representa uma atribuição de variável na AST
 // AssignmentStatement representa uma atribuição de variável
 type AssignmentStatement struct {
 	Name  string
@@ -81,7 +114,6 @@ type AssignmentStatement struct {
 }
 
 func (a *AssignmentStatement) stmtNode() {}
-
 func (a *AssignmentStatement) String() string {
 	return fmt.Sprintf("(%s = %s)", a.Name, a.Value.String())
 }

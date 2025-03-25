@@ -27,9 +27,13 @@ const (
 	RBRACE     TokenType = "RBRACE"     // }
 	IF         TokenType = "IF"         // if
 	ELSE       TokenType = "ELSE"       // else
+	WHILE      TokenType = "WHILE"      // while
+	FOR        TokenType = "FOR"        // for
 	GTE        TokenType = "GTE"        // >=
 	LTE        TokenType = "LTE"        // <=
 	GT         TokenType = "GT"         // >
 	LT         TokenType = "LT"         // <
 	EQ         TokenType = "EQ"         // == (igualdade)
+	AND        TokenType = "AND"        // &&
+	OR         TokenType = "OR"         // ||
 )
