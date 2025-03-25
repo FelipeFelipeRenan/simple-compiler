@@ -8,16 +8,21 @@ import (
 
 // Parser estrutura que gerencia a análise sintática
 type Parser struct {
-	tokens  []token.Token
-	pos     int
-	current token.Token
+    tokens      []token.Token
+    pos         int
+    current     token.Token
+    symbolTable *SymbolTable
+    errors      []string
 }
 
-// New cria um novo Parser
 func New(tokens []token.Token) *Parser {
-	p := &Parser{tokens: tokens, pos: 0}
-	p.nextToken() // Inicializa o primeiro token
-	return p
+    p := &Parser{
+        tokens:      tokens,
+        symbolTable: NewSymbolTable(),
+        errors:      make([]string, 0),
+    }
+    p.nextToken() // Inicializa o primeiro token
+    return p
 }
 
 // AtEnd verifica se chegou ao final dos tokens
@@ -130,46 +135,75 @@ func (p *Parser) parsePrimary() Expression {
 }
 
 // ParseStatement analisa comandos como atribuições e estruturas condicionais
+
 func (p *Parser) ParseStatement() Statement {
-	switch p.current.Type {
-	case token.IDENTIFIER:
-		return p.ParseAssignment()
+    switch p.current.Type {
+    case token.TYPE: // Declaração de variável
+        return p.ParseVariableDeclaration()
+    case token.IDENTIFIER:
+        return p.ParseAssignmentOrExpression()
+    case token.IF:
+        return p.parseIfStatement()
+    case token.WHILE:
+        return p.parseWhileStatement()
+    case token.FOR:
+        return p.parseForStatement()
+    case token.RETURN:
+        return p.parseReturnStatement()
+    default:
+        p.addError(fmt.Sprintf("Declaração inválida com token %s", p.current.Lexeme))
+        p.Skip()
+        return nil
+    }
+}
 
-	case token.IF:
-		return p.parseIfStatement()
-
-	case token.WHILE:
-		return p.parseWhileStatement()
-
-	case token.FOR:
-		return p.parseForStatement()
-
-	default:
-		fmt.Printf("Erro: declaração inválida com token %s\n", p.current.Lexeme)
-		return nil
-	}
+// Modificação para gerenciar escopos em blocos
+func (p *Parser) parseBlock() []Statement {
+    p.symbolTable.PushScope()
+    defer p.symbolTable.PopScope()
+    
+    var statements []Statement
+    
+    for p.current.Type != token.RBRACE && !p.AtEnd() {
+        stmt := p.ParseStatement()
+        if stmt != nil {
+            statements = append(statements, stmt)
+        }
+    }
+    
+    return statements
 }
 
 // ParseAssignment analisa expressões de atribuição (ex: x = 10)
+// Modificação para verificar símbolos em atribuições
 func (p *Parser) ParseAssignment() Statement {
-	name := p.current.Lexeme
-	p.nextToken()
-
-	if p.current.Type != token.ASSIGN {
-		fmt.Println("Erro: esperado '=' após identificador")
-		return nil
-	}
-	p.nextToken()
-
-	value := p.parseExpression()
-	if value == nil {
-		fmt.Println("Erro: esperado valor após '='")
-		return nil
-	}
-
-	return &AssignmentStatement{Name: name, Value: value}
+    name := p.current.Lexeme
+    
+    // Verifica se a variável foi declarada
+    if _, exists := p.symbolTable.Resolve(name); !exists {
+        p.addError(fmt.Sprintf("Variável '%s' não declarada", name))
+    }
+    
+    p.nextToken()
+    
+    if p.current.Type != token.ASSIGN {
+        p.addError("Esperado '=' após identificador")
+        return nil
+    }
+    p.nextToken()
+    
+    value := p.parseExpression()
+    
+    // Atualiza o valor na tabela de símbolos
+    if err := p.symbolTable.Update(name, value); err != nil {
+        p.addError(err.Error())
+    }
+    
+    return &AssignmentStatement{
+        Name:  name,
+        Value: value,
+    }
 }
-
 // parseIfStatement analisa comandos `if` com suporte a `else`
 func (p *Parser) parseIfStatement() *IfStatement {
 	p.nextToken()
@@ -347,6 +381,86 @@ func (p *Parser) parseForStatement() *ForStatement {
     }
 }
 
+// Nova função para declaração de variáveis
+func (p *Parser) ParseVariableDeclaration() Statement {
+    typeToken := p.current
+    p.nextToken()
+    
+    if p.current.Type != token.IDENTIFIER {
+        p.addError("Esperado identificador após tipo")
+        return nil
+    }
+    
+    name := p.current.Lexeme
+    p.nextToken()
+    
+    // Verifica se variável já foi declarada
+    if p.symbolTable.ExistsInCurrentScope(name) {
+        p.addError(fmt.Sprintf("Variável '%s' já declarada neste escopo", name))
+    }
+    
+    var value Expression
+    if p.current.Type == token.ASSIGN {
+        p.nextToken()
+        value = p.parseExpression()
+    }
+    
+    // Registra na tabela de símbolos
+    err := p.symbolTable.Declare(name, SymbolInfo{
+        Name:     name,
+        Category: Variable,
+        Type:     typeToken.Lexeme,
+    })
+    
+    if err != nil {
+        p.addError(err.Error())
+    }
+    
+    return &VariableDeclaration{
+        Type:  typeToken.Lexeme,
+        Name:  name,
+        Value: value,
+    }
+}
+
+func (p *Parser) ParseAssignmentOrExpression() Statement {
+    name := p.current.Lexeme
+    
+    if p.peekToken().Type == token.ASSIGN {
+        return p.ParseAssignment()
+    }
+    
+    expr := p.parseExpression()
+    
+    if ident, isIdent := expr.(*Identifier); isIdent {
+        if _, exists := p.symbolTable.Resolve(ident.Name); !exists {
+            p.addError(fmt.Sprintf("Variável '%s' não declarada", name))
+        }
+    }
+    
+    return &ExpressionStatement{Expression: expr}
+}
+
+
+// parseReturnStatement processa declarações de retorno
+func (p *Parser) parseReturnStatement() *ReturnStatement {
+    stmt := &ReturnStatement{}
+    p.nextToken() // Pula o 'return'
+    
+    if p.current.Type != token.SEMICOLON {
+        stmt.Value = p.parseExpression()
+    }
+    
+    return stmt
+}
+
+// peekToken retorna o próximo token sem consumi-lo
+func (p *Parser) peekToken() token.Token {
+    if p.pos < len(p.tokens)-1 {
+        return p.tokens[p.pos]
+    }
+    return token.Token{Type: token.EOF}
+}
 
 // Parse analisa uma sequência de declarações e retorna a AST completa
 func (p *Parser) Parse() []Statement {
@@ -362,4 +476,9 @@ func (p *Parser) Parse() []Statement {
 	}
 
 	return statements
+}
+
+// Função auxiliar para registrar erros
+func (p *Parser) addError(msg string) {
+    p.errors = append(p.errors, msg)
 }

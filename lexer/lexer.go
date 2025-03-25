@@ -40,10 +40,14 @@ func (l *Lexer) skipWhitespace() {
 
 // Palavras-chave
 var keywords = map[string]token.TokenType{
-	"if":   token.IF,
-	"else": token.ELSE,
-	"for" : token.FOR,
-	"while": token.WHILE,
+	"if":     token.IF,
+	"else":   token.ELSE,
+	"for":    token.FOR,
+	"while":  token.WHILE,
+	"int":    token.TYPE,   
+	"float":  token.TYPE,    
+	"void":   token.TYPE,    
+	"return": token.RETURN,  
 }
 
 // Lê um identificador e verifica se é uma palavra-chave

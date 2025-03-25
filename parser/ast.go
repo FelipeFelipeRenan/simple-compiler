@@ -1,6 +1,9 @@
 package parser
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Node representa um nó genérico da AST
 type Node interface {
@@ -116,4 +119,65 @@ type AssignmentStatement struct {
 func (a *AssignmentStatement) stmtNode() {}
 func (a *AssignmentStatement) String() string {
 	return fmt.Sprintf("(%s = %s)", a.Name, a.Value.String())
+}
+
+// VariableDeclaration representa declaração de variável
+type VariableDeclaration struct {
+    Type  string
+    Name  string
+    Value Expression
+}
+
+func (vd *VariableDeclaration) stmtNode() {}
+func (vd *VariableDeclaration) String() string {
+    if vd.Value != nil {
+        return fmt.Sprintf("var %s %s = %s", vd.Name, vd.Type, vd.Value.String())
+    }
+    return fmt.Sprintf("var %s %s", vd.Name, vd.Type)
+}
+
+// ReturnStatement representa um retorno de função
+type ReturnStatement struct {
+    Value Expression
+}
+
+func (rs *ReturnStatement) stmtNode() {}
+func (rs *ReturnStatement) String() string {
+    if rs.Value != nil {
+        return fmt.Sprintf("return %s", rs.Value.String())
+    }
+    return "return"
+}
+
+// FunctionDeclaration representa uma função
+type FunctionDeclaration struct {
+    Name       string
+    Parameters []*VariableDeclaration
+    ReturnType string
+    Body       []Statement
+}
+
+func (fd *FunctionDeclaration) stmtNode() {}
+func (fd *FunctionDeclaration) String() string {
+    params := make([]string, len(fd.Parameters))
+    for i, p := range fd.Parameters {
+        params[i] = p.String()
+    }
+    
+    body := ""
+    for _, stmt := range fd.Body {
+        body += "\n    " + stmt.String()
+    }
+    
+    return fmt.Sprintf("func %s(%s) %s {%s\n}", 
+        fd.Name, strings.Join(params, ", "), fd.ReturnType, body)
+}
+
+type ExpressionStatement struct {
+    Expression Expression
+}
+
+func (es *ExpressionStatement) stmtNode() {}
+func (es *ExpressionStatement) String() string {
+    return es.Expression.String()
 }

@@ -14,6 +14,8 @@ const (
 	ILLEGAL    TokenType = "ILLEGAL"    // Token inválido
 	EOF        TokenType = "EOF"        // Fim do código-fonte
 	IDENTIFIER TokenType = "IDENTIFIER" // Identificadores (variáveis, funções)
+	TYPE       TokenType = "TYPE"       // int, float, void
+	RETURN     TokenType = "RETURN"     // return
 	NUMBER     TokenType = "NUMBER"     // Números inteiros
 	PLUS       TokenType = "PLUS"       // +
 	MINUS      TokenType = "MINUS"      // -
