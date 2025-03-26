@@ -1,11 +1,1 @@
-if (x > 5) {
-    int temp = x * 2;
-    if (y < 10) {
-        temp = temp + y;
-    } else {
-        temp = temp - y;
-    }
-    while (temp > 0) {
-        temp = temp - 1;
-    }
-}
+int x = 10 

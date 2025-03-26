@@ -5,46 +5,57 @@ import (
 	"os"
 	"simple-compiler/lexer"
 	"simple-compiler/parser"
+	"simple-compiler/semantic"
 	"simple-compiler/token"
 )
 
 func main() {
 	fileName := "input.txt"
 
-	// Ler o arquivo fonte
+	// 1. Ler o arquivo fonte
 	source, err := os.ReadFile(fileName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Erro ao ler o arquivo '%s': %v\n", fileName, err)
 		os.Exit(1)
 	}
 
-	// Criar lexer
+	// 2. Análise Léxica
 	l := lexer.New(string(source))
-
-	// Coletar tokens
 	var tokens []token.Token
 	for {
 		tok := l.NextToken()
 		tokens = append(tokens, tok)
-
 		if tok.Type == token.EOF {
 			break
 		}
 	}
 
-	// Criar parser e processar declarações
+	// 3. Análise Sintática
 	p := parser.New(tokens)
+
 	statements := p.Parse()
 
-	// Verificar se o parsing resultou em erros
+	// 4. Verificar erros de parsing
 	if len(statements) == 0 {
 		fmt.Println("Nenhuma declaração válida foi encontrada no código-fonte.")
 		return
 	}
 
-	// Exibir AST
-	fmt.Println("AST gerada:")
-	// cmd/main.go
+	// 5. Análise Semântica
+	analyzer := semantic.New(statements)
+	semanticErrors := analyzer.Analyze()
+
+	// 6. Exibir erros semânticos
+	if len(semanticErrors) > 0 {
+		fmt.Println("\nErros semânticos encontrados:")
+		for _, err := range semanticErrors {
+			fmt.Println("🔴", err)
+		}
+		os.Exit(1)
+	}
+
+	// 7. Exibir AST (apenas se não houver erros)
+	fmt.Println("\nAST gerada:")
 	for _, stmt := range statements {
 		if stmt != nil {
 			fmt.Println(stmt.String())

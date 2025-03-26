@@ -38,4 +38,6 @@ const (
 	EQ         TokenType = "EQ"         // == (igualdade)
 	AND        TokenType = "AND"        // &&
 	OR         TokenType = "OR"         // ||
+	INT        TokenType = "INT"        // int
+	FLOAT      TokenType = "FLOAT"      // float
 )

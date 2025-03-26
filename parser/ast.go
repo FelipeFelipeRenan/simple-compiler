@@ -43,54 +43,60 @@ func (n *Number) String() string {
 }
 
 // IfStatement representa uma estrutura condicional
+// IfStatement representa uma estrutura condicional
 type IfStatement struct {
-	Condition Expression
-	Body      []Statement
-	ElseBody  []Statement
+    Condition Expression
+    Body      *BlockStatement
+    ElseBody  *BlockStatement // Opcional
 }
 
 func (i *IfStatement) stmtNode() {}
-// parser/ast.go
 func (i *IfStatement) String() string {
-    if i == nil {
-        return "<nil IfStatement>"
-    }
-    
     var sb strings.Builder
-    fmt.Fprintf(&sb, "if (%s) {", i.Condition.String())
     
-    for _, stmt := range i.Body {
-        if stmt != nil {
-            fmt.Fprintf(&sb, "\n%s", indent(stmt.String()))
+    // Condição
+    sb.WriteString("if ")
+    sb.WriteString(i.Condition.String())
+    sb.WriteString(" {\n")
+    
+    // Corpo
+    if i.Body != nil {
+        for _, stmt := range i.Body.Statements {
+            sb.WriteString("    ")
+            sb.WriteString(stmt.String())
+            sb.WriteString("\n")
         }
     }
     
-    if len(i.ElseBody) > 0 {
-        fmt.Fprint(&sb, "\n} else {")
-        for _, stmt := range i.ElseBody {
-            if stmt != nil {
-                fmt.Fprintf(&sb, "\n%s", indent(stmt.String()))
-            }
-        }
-    }
-    
-    fmt.Fprint(&sb, "\n}")
+    sb.WriteString("}")
     return sb.String()
 }
+
 // WhileStatement representa um loop while
 type WhileStatement struct {
-	Condition Expression
-	Body      []Statement
+    Condition Expression
+    Body      *BlockStatement
 }
 
 func (w *WhileStatement) stmtNode() {}
 func (w *WhileStatement) String() string {
-    bodyStr := ""
-    for _, stmt := range w.Body {
-        bodyStr += "\n" + indent(stmt.String())
+    if w == nil {
+        return "<nil WhileStatement>"
     }
-    return fmt.Sprintf("while (%s) {%s\n}", w.Condition.String(), bodyStr)
+    
+    var sb strings.Builder
+    fmt.Fprintf(&sb, "while (%s) {", w.Condition.String())
+    
+    if w.Body != nil {
+        for _, stmt := range w.Body.Statements {
+            sb.WriteString("\n" + indent(stmt.String()))
+        }
+    }
+    
+    sb.WriteString("\n}")
+    return sb.String()
 }
+
 
 
 // ForStatement representa um loop for
@@ -199,4 +205,17 @@ func (es *ExpressionStatement) String() string {
 // Função auxiliar para indentação
 func indent(s string) string {
     return "    " + strings.ReplaceAll(s, "\n", "\n    ")
+}
+
+type BlockStatement struct {
+    Statements []Statement
+}
+
+func (b *BlockStatement) stmtNode() {}
+func (b *BlockStatement) String() string {
+    var sb strings.Builder
+    for _, stmt := range b.Statements {
+        sb.WriteString(stmt.String())
+    }
+    return sb.String()
 }

@@ -157,23 +157,6 @@ func (p *Parser) ParseStatement() Statement {
 	}
 }
 
-// Modificação para gerenciar escopos em blocos
-func (p *Parser) parseBlock() []Statement {
-	p.symbolTable.PushScope()
-	defer p.symbolTable.PopScope()
-
-	var statements []Statement
-
-	for p.current.Type != token.RBRACE && !p.AtEnd() {
-		stmt := p.ParseStatement()
-		if stmt != nil {
-			statements = append(statements, stmt)
-		}
-	}
-
-	return statements
-}
-
 // ParseAssignment analisa expressões de atribuição (ex: x = 10)
 // Modificação para verificar símbolos em atribuições
 func (p *Parser) ParseAssignment() Statement {
@@ -206,79 +189,57 @@ func (p *Parser) ParseAssignment() Statement {
 }
 
 // parseIfStatement analisa comandos `if` com suporte a `else`
-
 func (p *Parser) parseIfStatement() Statement {
-    ifStmt := &IfStatement{}
     p.nextToken() // Pula o 'if'
 
-    // Parse condition
+    // Verifica parêntese de abertura
     if p.current.Type != token.LPAREN {
         p.addError("Esperado '(' após 'if'")
         return nil
     }
     p.nextToken()
 
-    ifStmt.Condition = p.parseExpression()
-    if ifStmt.Condition == nil {
-        p.addError("Condição inválida após 'if'")
+    // Parse da condição
+    condition := p.parseExpression()
+    if condition == nil {
         return nil
     }
 
+    // Verifica parêntese de fechamento
     if p.current.Type != token.RPAREN {
-        p.addError("Esperado ')' após condição do 'if'")
+        p.addError("Esperado ')' após condição do if")
         return nil
     }
     p.nextToken()
 
-    // Parse body
+    // Parse do bloco principal
     if p.current.Type != token.LBRACE {
-        p.addError("Esperado '{' após condição do 'if'")
+        p.addError("Esperado '{' após condição do if")
         return nil
     }
     p.nextToken()
 
+    var body []Statement
     for p.current.Type != token.RBRACE && !p.AtEnd() {
         stmt := p.ParseStatement()
         if stmt != nil {
-            ifStmt.Body = append(ifStmt.Body, stmt)
+            body = append(body, stmt)
         }
     }
 
     if p.current.Type != token.RBRACE {
-        p.addError("Esperado '}' ao final do bloco 'if'")
+        p.addError("Esperado '}' ao final do bloco if")
         return nil
     }
     p.nextToken()
 
-    // Parse else clause
-    if p.current.Type == token.ELSE {
-        p.nextToken()
-        
-        if p.current.Type == token.LBRACE {
-            p.nextToken()
-            
-            for p.current.Type != token.RBRACE && !p.AtEnd() {
-                stmt := p.ParseStatement()
-                if stmt != nil {
-                    ifStmt.ElseBody = append(ifStmt.ElseBody, stmt)
-                }
-            }
-            
-            if p.current.Type != token.RBRACE {
-                p.addError("Esperado '}' ao final do bloco 'else'")
-                return nil
-            }
-            p.nextToken()
-        } else if p.current.Type == token.IF {
-            // Else if
-            ifStmt.ElseBody = append(ifStmt.ElseBody, p.parseIfStatement())
-        }
+    // Cria e retorna o nó IfStatement
+    return &IfStatement{
+        Condition: condition,
+        Body:      &BlockStatement{Statements: body},
     }
-
-    return ifStmt
 }
-// parseWhileStatement analisa o comando `while`
-// Espera-se que a estrutura seja: while (condição) { corpo }
+
 func (p *Parser) parseWhileStatement() Statement {
     whileStmt := &WhileStatement{}
     p.nextToken() // Pula o 'while'
@@ -309,10 +270,11 @@ func (p *Parser) parseWhileStatement() Statement {
     }
     p.nextToken()
 
+    var body []Statement
     for p.current.Type != token.RBRACE && !p.AtEnd() {
         stmt := p.ParseStatement()
         if stmt != nil {
-            whileStmt.Body = append(whileStmt.Body, stmt)
+            body = append(body, stmt)
         }
     }
 
@@ -322,9 +284,9 @@ func (p *Parser) parseWhileStatement() Statement {
     }
     p.nextToken()
 
+    whileStmt.Body = &BlockStatement{Statements: body}
     return whileStmt
 }
-
 // parseForStatement analisa o `for`
 func (p *Parser) parseForStatement() *ForStatement {
 	p.nextToken()
