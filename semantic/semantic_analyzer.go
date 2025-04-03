@@ -134,8 +134,12 @@ func (a *Analyzer) checkStatement(stmt parser.Statement) {
         a.checkIfStatement(s)
     case *parser.WhileStatement:
         a.checkWhileStatement(s)
+    case *parser.ForStatement:
+        a.checkForStatement(s) // Adicione esta linha
     case *parser.BlockStatement:
         a.checkBlockStatement(s)
+    case *parser.ExpressionStatement:
+        // Opcional: verificar expressões puras
     default:
         a.errors = append(a.errors, 
             fmt.Sprintf("Tipo de statement não suportado: %T", stmt))
@@ -219,6 +223,33 @@ func (a *Analyzer) checkWhileStatement(whileStmt *parser.WhileStatement) {
         for _, stmt := range whileStmt.Body.Statements {  // Acesse Statements dentro do BlockStatement
             a.checkStatement(stmt)
         }
+    }
+    a.symbolTable.PopScope()
+}
+
+func (a *Analyzer) checkForStatement(forStmt *parser.ForStatement) {
+    // Verifica a inicialização
+    if forStmt.Init != nil {
+        a.checkStatement(forStmt.Init)
+    }
+
+    // Verifica a condição
+    if forStmt.Condition != nil {
+        condType := a.checkExpression(forStmt.Condition)
+        if condType != "bool" {
+            a.errors = append(a.errors, "Condição do for deve ser booleana")
+        }
+    }
+
+    // Verifica o incremento
+    if forStmt.Update != nil {
+        a.checkStatement(forStmt.Update)
+    }
+
+    // Verifica o corpo do for
+    a.symbolTable.PushScope()
+    if forStmt.Body != nil {
+        a.checkStatement(forStmt.Body)
     }
     a.symbolTable.PopScope()
 }

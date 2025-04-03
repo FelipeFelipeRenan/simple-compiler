@@ -287,64 +287,83 @@ func (p *Parser) parseWhileStatement() Statement {
     whileStmt.Body = &BlockStatement{Statements: body}
     return whileStmt
 }
-// parseForStatement analisa o `for`
-func (p *Parser) parseForStatement() *ForStatement {
-	p.nextToken()
 
-	if p.current.Type != token.LPAREN {
-		fmt.Println("Erro: esperado '(' após 'for'")
-		return nil
-	}
-	p.nextToken()
-
-	// Inicialização (como atribuição)
-	init := p.ParseAssignment()
-
-	if p.current.Type != token.SEMICOLON {
-		fmt.Println("Erro: esperado ';' após a inicialização do 'for'")
-		return nil
-	}
-	p.nextToken()
-
-	// Condição (expressão booleana)
-	condition := p.parseExpression()
-
-	if p.current.Type != token.SEMICOLON {
-		fmt.Println("Erro: esperado ';' após a condição do 'for'")
-		return nil
-	}
-	p.nextToken()
-
-	// Atualização (como atribuição)
-	update := p.ParseAssignment()
-
-	if p.current.Type != token.RPAREN {
-		fmt.Println("Erro: esperado ')' após cabeçalho do 'for'")
-		return nil
-	}
-	p.nextToken()
-
-	if p.current.Type != token.LBRACE {
-		fmt.Println("Erro: esperado '{' após cabeçalho do 'for'")
-		return nil
-	}
-	p.nextToken()
-
-	// Corpo do 'for'
-	var body []Statement
-	for p.current.Type != token.RBRACE && p.current.Type != token.EOF {
-		body = append(body, p.ParseStatement())
-	}
-	p.nextToken()
-
-	return &ForStatement{
-		Init:      init,
-		Condition: condition,
-		Update:    update,
-		Body:      body,
-	}
+func (p *Parser) parseBlock() *BlockStatement {
+    block := &BlockStatement{}
+    p.nextToken() // Pula '{'
+    
+    for p.current.Type != token.RBRACE && !p.AtEnd() {
+        stmt := p.ParseStatement()
+        if stmt != nil {
+            block.Statements = append(block.Statements, stmt)
+        }
+    }
+    
+    if p.current.Type != token.RBRACE {
+        p.addError("Esperado '}' ao final do bloco")
+        return nil
+    }
+    p.nextToken()
+    
+    return block
 }
+// parseForStatement analisa o `for`
+func (p *Parser) parseForStatement() Statement {
+    forStmt := &ForStatement{}
+    p.nextToken() // Pula 'for'
 
+    // Exige parênteses de abertura
+    if p.current.Type != token.LPAREN {
+        p.addError("Esperado '(' após 'for'")
+        return nil
+    }
+    p.nextToken()
+
+    // Inicialização (pode ser vazia)
+    if p.current.Type != token.SEMICOLON {
+        forStmt.Init = p.ParseStatement()
+    }
+
+    // Exige primeiro ;
+    if p.current.Type != token.SEMICOLON {
+        p.addError("Esperado ';' após inicialização do for")
+        return nil
+    }
+    p.nextToken()
+
+    // Condição (pode ser vazia)
+    if p.current.Type != token.SEMICOLON {
+        forStmt.Condition = p.parseExpression()
+    }
+
+    // Exige segundo ;
+    if p.current.Type != token.SEMICOLON {
+        p.addError("Esperado ';' após condição do for")
+        return nil
+    }
+    p.nextToken()
+
+    // Atualização (pode ser vazia)
+    if p.current.Type != token.RPAREN {
+        forStmt.Update = p.ParseStatement()
+    }
+
+    // Exige parênteses de fechamento
+    if p.current.Type != token.RPAREN {
+        p.addError("Esperado ')' após cabeçalho do for")
+        return nil
+    }
+    p.nextToken()
+
+    // Exige bloco com {}
+    if p.current.Type != token.LBRACE {
+        p.addError("Esperado '{' após cabeçalho do for")
+        return nil
+    }
+    forStmt.Body = p.parseBlock()
+
+    return forStmt
+}
 // Nova função para declaração de variáveis
 func (p *Parser) ParseVariableDeclaration() Statement {
 	typeToken := p.current

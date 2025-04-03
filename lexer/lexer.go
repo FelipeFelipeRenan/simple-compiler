@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"fmt"
 	"simple-compiler/token"
 	"unicode"
 )
@@ -81,6 +82,8 @@ func (l *Lexer) NextToken() token.Token {
 	l.skipWhitespace()
 
 	var tok token.Token
+	fmt.Printf("Processando char: %q\n", l.ch) // Antes do switch
+
 
 	switch l.ch {
 	case '+':
@@ -113,7 +116,8 @@ func (l *Lexer) NextToken() token.Token {
 			tok = token.Token{Type: token.LT, Lexeme: "<"}
 		}
 	case ';':
-		tok = token.Token{Type: token.SEMICOLON, Lexeme: ";"}
+        tok = token.Token{Type: token.SEMICOLON, Lexeme: ";"}
+        l.readChar()
 	case '(':
 		tok = token.Token{Type: token.LPAREN, Lexeme: "("}
 	case ')':

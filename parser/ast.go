@@ -101,20 +101,37 @@ func (w *WhileStatement) String() string {
 
 // ForStatement representa um loop for
 type ForStatement struct {
-	Init      Statement
-	Condition Expression
-	Update    Statement
-	Body      []Statement
+    Init      Statement  // Declaração ou atribuição
+    Condition Expression // Expressão booleana
+    Update    Statement  // Atribuição
+    Body      *BlockStatement
 }
 
 func (f *ForStatement) stmtNode() {}
 func (f *ForStatement) String() string {
-    bodyStr := ""
-    for _, stmt := range f.Body {
-        bodyStr += "\n" + indent(stmt.String())
+    initStr := ""
+    if f.Init != nil {
+        initStr = f.Init.String()
     }
-    return fmt.Sprintf("for (%s; %s; %s) {%s\n}", 
-        f.Init.String(), f.Condition.String(), f.Update.String(), bodyStr)
+    
+    condStr := ""
+    if f.Condition != nil {
+        condStr = f.Condition.String()
+    }
+    
+    updateStr := ""
+    if f.Update != nil {
+        updateStr = f.Update.String()
+    }
+    
+    bodyStr := ""
+    if f.Body != nil {
+        for _, stmt := range f.Body.Statements {
+            bodyStr += "\n    " + stmt.String()
+        }
+    }
+    
+    return fmt.Sprintf("for (%s; %s; %s) {%s\n}", initStr, condStr, updateStr, bodyStr)
 }
 
 // BinaryExpression representa operações entre dois operandos
@@ -137,7 +154,7 @@ type AssignmentStatement struct {
 
 func (a *AssignmentStatement) stmtNode() {}
 func (a *AssignmentStatement) String() string {
-    return fmt.Sprintf("%s = %s;", a.Name, a.Value.String())
+    return fmt.Sprintf("%s = %s", a.Name, a.Value.String())
 }
 
 
@@ -151,11 +168,10 @@ type VariableDeclaration struct {
 func (vd *VariableDeclaration) stmtNode() {}
 func (v *VariableDeclaration) String() string {
     if v.Value != nil {
-        return fmt.Sprintf("var %s %s = %s;", v.Name, v.Type, v.Value.String())
+        return fmt.Sprintf("var %s %s = %s", v.Name, v.Type, v.Value.String())
     }
-    return fmt.Sprintf("var %s %s;", v.Name, v.Type)
+    return fmt.Sprintf("var %s %s", v.Name, v.Type)
 }
-
 // ReturnStatement representa um retorno de função
 type ReturnStatement struct {
     Value Expression
