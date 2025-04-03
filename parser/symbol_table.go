@@ -52,24 +52,23 @@ func (st *SymbolTable) PopScope() {
 
 // Declara um novo símbolo no escopo atual
 func (st *SymbolTable) Declare(name string, info SymbolInfo) error {
-	currentScope := st.scopes[len(st.scopes)-1]
-	
-	if _, exists := currentScope[name]; exists {
-		return fmt.Errorf("symbol '%s' already declared in this scope", name)
-	}
-	
-	currentScope[name] = info
-	return nil
+    currentScope := st.scopes[len(st.scopes)-1]
+    
+    if _, exists := currentScope[name]; exists {
+        return fmt.Errorf("symbol '%s' already declared in this scope", name)
+    }
+    
+    currentScope[name] = info
+    return nil
 }
 
-// Resolve um símbolo (procura do escopo atual para fora)
 func (st *SymbolTable) Resolve(name string) (SymbolInfo, bool) {
-	for i := len(st.scopes) - 1; i >= 0; i-- {
-		if info, exists := st.scopes[i][name]; exists {
-			return info, true
-		}
-	}
-	return SymbolInfo{}, false
+    for i := len(st.scopes) - 1; i >= 0; i-- {
+        if info, exists := st.scopes[i][name]; exists {
+            return info, true
+        }
+    }
+    return SymbolInfo{}, false
 }
 
 // Atualiza o valor de um símbolo existente

@@ -41,16 +41,24 @@ func (a *Analyzer) addError(msg string, line int, token string) {
 }
 
 func (a *Analyzer) checkVariableDecl(decl *parser.VariableDeclaration) {
+	// Verificação de tipo
+	switch decl.Type {
+	case "int", "float", "string", "bool":
+		// Tipos válidos
+	default:
+		a.addError(fmt.Sprintf("Tipo desconhecido: %s", decl.Type),
+			decl.GetToken().Line, decl.GetToken().Lexeme)
+	}
 	if a.symbolTable.ExistsInCurrentScope(decl.Name) {
-		a.addError(fmt.Sprintf("Variável '%s' já declarada neste escopo", decl.Name), 
+		a.addError(fmt.Sprintf("Variável '%s' já declarada neste escopo", decl.Name),
 			decl.Token.Line, decl.Token.Lexeme)
 	}
 
 	// Registra a variável
 	a.symbolTable.Declare(decl.Name, parser.SymbolInfo{
-		Type:     decl.Type,
-		Category: parser.Variable,
-		Line:     decl.Token.Line,
+		Type:      decl.Type,
+		Category:  parser.Variable,
+		DefinedAt: decl.Token.Line,
 	})
 
 	// Verifica a expressão de inicialização
@@ -259,3 +267,5 @@ func (a *Analyzer) checkForStatement(forStmt *parser.ForStatement) {
 	}
 	a.symbolTable.PopScope()
 }
+
+// Para Identifier

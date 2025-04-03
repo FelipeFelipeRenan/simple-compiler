@@ -12,25 +12,25 @@ type Parser struct {
 	pos         int
 	current     token.Token
 	symbolTable *SymbolTable
-	errors      []ParseError
+	Errors      []ParseError
 }
 
 type ParseError struct {
 	Message string
-	Line int
-	Token string
+	Column  int
+	Line    int
+	Token   string
 }
 
 func New(tokens []token.Token) *Parser {
-	p := &Parser{
-		tokens:      tokens,
-		symbolTable: NewSymbolTable(),
-		errors:      make([]ParseError, 0),
-	}
-	p.nextToken() // Inicializa o primeiro token
-	return p
+    p := &Parser{
+        tokens:      tokens,
+        symbolTable: NewSymbolTable(), // Certifique-se que está inicializando aqui
+        Errors:      make([]ParseError, 0),
+    }
+    p.nextToken()
+    return p
 }
-
 // AtEnd verifica se chegou ao final dos tokens
 func (p *Parser) AtEnd() bool {
 	return p.current.Type == token.EOF
@@ -55,91 +55,248 @@ func (p *Parser) Skip() {
 
 // parseExpression trata a expressão inteira, respeitando a precedência.
 func (p *Parser) parseExpression() Expression {
-	return p.parseComparison() // Começa com comparação, que tem a menor precedência
+    return p.parseAssignment()
 }
 
-// parseComparison lida com operadores de comparação: >, <, >=, <=, ==.
+func (p *Parser) parseAssignment() Expression {
+    expr := p.parseLogicalOr()
+    
+    if p.current.Type == token.ASSIGN {
+        if ident, ok := expr.(*Identifier); ok {
+            opToken := p.current
+            p.nextToken()
+            value := p.parseAssignment()
+            return &BinaryExpression{
+                Left:     ident,
+                Operator: opToken.Lexeme,
+                Right:    value,
+                Token:    opToken,
+            }
+        }
+        p.addError("Esperado identificador no lado esquerdo da atribuição", 
+                  p.current.Line, p.current.Column)
+    }
+    
+    return expr
+}
+
+func (p *Parser) ParseAssignment() Statement {
+    name := p.current.Lexeme
+    currentToken := p.current
+
+    // Verifica se a variável foi declarada
+    if _, exists := p.symbolTable.Resolve(name); !exists {
+        p.addError(fmt.Sprintf("Variável '%s' não declarada", name), 
+                  currentToken.Line, currentToken.Column)
+    }
+
+    p.nextToken() // Pula o nome da variável
+
+    // CORREÇÃO: Compare p.current.Type com token.ASSIGN
+    if p.current.Type != token.ASSIGN {
+        p.addError("Esperado '=' após identificador", currentToken.Line, currentToken.Column)
+        return nil
+    }
+    
+    assignToken := p.current
+    p.nextToken() // Pula o '='
+
+    value := p.parseExpression()
+
+    return &AssignmentStatement{
+        Name:  name,
+        Value: value,
+        Token: assignToken,
+    }
+}
+
+func (p *Parser) ParseAssignmentOrExpression() Statement {
+    name := p.current.Lexeme
+
+    // Verifica se é uma atribuição
+    if p.peekToken().Type == token.ASSIGN {
+        return p.ParseAssignment()
+    }
+
+    // Verifica se a variável foi declarada
+    if _, exists := p.symbolTable.Resolve(name); !exists {
+        p.addError(fmt.Sprintf("Variável '%s' não declarada", name), 
+                  p.current.Line, p.current.Column)
+    }
+
+    // Processa como expressão
+    expr := p.parseExpression()
+    return &ExpressionStatement{Expression: expr}
+}
+
+func (p *Parser) parseLogicalOr() Expression {
+    expr := p.parseLogicalAnd()
+    
+    for p.current.Type == token.OR {
+        opToken := p.current
+        p.nextToken()
+        right := p.parseLogicalAnd()
+        expr = &BinaryExpression{
+            Left:     expr,
+            Operator: opToken.Lexeme,
+            Right:    right,
+            Token:    opToken,
+        }
+    }
+    
+    return expr
+}
+
+func (p *Parser) parseLogicalAnd() Expression {
+    expr := p.parseEquality()
+    
+    for p.current.Type == token.AND {
+        opToken := p.current
+        p.nextToken()
+        right := p.parseEquality()
+        expr = &BinaryExpression{
+            Left:     expr,
+            Operator: opToken.Lexeme,
+            Right:    right,
+            Token:    opToken,
+        }
+    }
+    
+    return expr
+}
+
+func (p *Parser) parseEquality() Expression {
+    expr := p.parseComparison()
+    
+    for p.current.Type == token.EQ {
+        opToken := p.current
+        p.nextToken()
+        right := p.parseComparison()
+        expr = &BinaryExpression{
+            Left:     expr,
+            Operator: opToken.Lexeme,
+            Right:    right,
+            Token:    opToken,
+        }
+    }
+    
+    return expr
+}
+
 func (p *Parser) parseComparison() Expression {
-	left := p.parseAddition()
-
-	for p.current.Type == token.GT || p.current.Type == token.LT ||
-		p.current.Type == token.GTE || p.current.Type == token.LTE ||
-		p.current.Type == token.EQ {
-
-		op := p.current.Lexeme
-		p.nextToken()
-		right := p.parseAddition()
-
-		left = &BinaryExpression{Left: left, Operator: op, Right: right}
-	}
-
-	return left
+    expr := p.parseAddition()
+    
+    for p.current.Type == token.LT || p.current.Type == token.LTE || 
+        p.current.Type == token.GT || p.current.Type == token.GTE {
+        opToken := p.current
+        p.nextToken()
+        right := p.parseAddition()
+        expr = &BinaryExpression{
+            Left:     expr,
+            Operator: opToken.Lexeme,
+            Right:    right,
+            Token:    opToken,
+        }
+    }
+    
+    return expr
 }
 
-// parseAddition lida com operadores + e -.
 func (p *Parser) parseAddition() Expression {
-	left := p.parseMultiplication()
-
-	for p.current.Type == token.PLUS || p.current.Type == token.MINUS {
-		op := p.current.Lexeme
-		p.nextToken()
-		right := p.parseMultiplication()
-
-		left = &BinaryExpression{Left: left, Operator: op, Right: right}
-	}
-
-	return left
+    expr := p.parseMultiplication()
+    
+    for p.current.Type == token.PLUS || p.current.Type == token.MINUS {
+        opToken := p.current
+        p.nextToken()
+        right := p.parseMultiplication()
+        expr = &BinaryExpression{
+            Left:     expr,
+            Operator: opToken.Lexeme,
+            Right:    right,
+            Token:    opToken,
+        }
+    }
+    
+    return expr
 }
 
-// parseMultiplication lida com * e /.
 func (p *Parser) parseMultiplication() Expression {
-	left := p.parsePrimary()
-
-	for p.current.Type == token.MULT || p.current.Type == token.DIV {
-		op := p.current.Lexeme
-		p.nextToken()
-		right := p.parsePrimary()
-
-		left = &BinaryExpression{Left: left, Operator: op, Right: right}
-	}
-
-	return left
+    expr := p.parseUnary()
+    
+    for p.current.Type == token.MULT || p.current.Type == token.DIV {
+        opToken := p.current
+        p.nextToken()
+        right := p.parseUnary()
+        expr = &BinaryExpression{
+            Left:     expr,
+            Operator: opToken.Lexeme,
+            Right:    right,
+            Token:    opToken,
+        }
+    }
+    
+    return expr
 }
 
-// parsePrimary lida com números, identificadores e expressões entre parênteses.
+func (p *Parser) parseUnary() Expression {
+    if p.current.Type == token.MINUS || p.current.Type == token.NOT {
+        opToken := p.current
+        p.nextToken()
+        return &UnaryExpression{
+            Operator: opToken.Lexeme,
+            Right:    p.parsePrimary(),
+            Token:    opToken,
+        }
+    }
+    return p.parsePrimary()
+}
+
 func (p *Parser) parsePrimary() Expression {
-	switch p.current.Type {
-	case token.NUMBER:
-		value, err := strconv.ParseFloat(p.current.Lexeme, 64)
-		if err != nil {
-			fmt.Printf("Erro ao converter número: %v\n", err)
-			return nil
-		}
-		expr := &Number{Value: value}
-		p.nextToken()
-		return expr
-
-	case token.IDENTIFIER:
-		expr := &Identifier{Name: p.current.Lexeme}
-		p.nextToken()
-		return expr
-
-	case token.LPAREN:
-		p.nextToken()
-		expr := p.parseExpression()
-		if p.current.Type != token.RPAREN {
-			fmt.Println("Erro: esperado ')' após expressão")
-			return nil
-		}
-		p.nextToken()
-		return expr
-
-	default:
-		fmt.Printf("Erro: token inesperado %s\n", p.current.Lexeme)
-		return nil
-	}
+    switch p.current.Type {
+    case token.NUMBER:
+        value, err := strconv.ParseFloat(p.current.Lexeme, 64)
+        if err != nil {
+            p.addError(fmt.Sprintf("Erro ao converter número: %v", err),
+                      p.current.Line, p.current.Column)
+            return nil
+        }
+        expr := &Number{Value: value, Token: p.current}
+        p.nextToken()
+        return expr
+        
+    case token.IDENTIFIER:
+        expr := &Identifier{Name: p.current.Lexeme, Token: p.current}
+        p.nextToken()
+        return expr
+        
+    case token.LPAREN:
+        p.nextToken()
+        expr := p.parseExpression()
+        if p.current.Type != token.RPAREN {
+            p.addError("Esperado ')' após expressão", p.current.Line, p.current.Column)
+            return nil
+        }
+        p.nextToken()
+        return expr
+        
+    case token.BOOLEAN:
+        value := p.current.Lexeme == "true"
+        expr := &BooleanLiteral{Value: value, Token: p.current}
+        p.nextToken()
+        return expr
+        
+    case token.STRING_LITERAL:
+        expr := &StringLiteral{Value: p.current.Lexeme, Token: p.current}
+        p.nextToken()
+        return expr
+        
+    default:
+        p.addError(fmt.Sprintf("Token inesperado: %s", p.current.Lexeme),
+                  p.current.Line, p.current.Column)
+        p.nextToken()
+        return nil
+    }
 }
-
 // ParseStatement analisa comandos como atribuições e estruturas condicionais
 
 func (p *Parser) ParseStatement() Statement {
@@ -157,277 +314,234 @@ func (p *Parser) ParseStatement() Statement {
 	case token.RETURN:
 		return p.parseReturnStatement()
 	default:
-		p.addError(fmt.Sprintf("Declaração inválida com token %s", p.current.Lexeme))
+		p.addError(fmt.Sprintf("Declaração inválida com token %s", p.current.Lexeme), p.current.Line, p.current.Column)
 		p.Skip()
 		return nil
 	}
 }
 
 // ParseAssignment analisa expressões de atribuição (ex: x = 10)
-// Modificação para verificar símbolos em atribuições
-func (p *Parser) ParseAssignment() Statement {
-	name := p.current.Lexeme
 
-	// Verifica se a variável foi declarada
-	if _, exists := p.symbolTable.Resolve(name); !exists {
-		p.addError(fmt.Sprintf("Variável '%s' não declarada", name))
-	}
-
-	p.nextToken()
-
-	if p.current.Type != token.ASSIGN {
-		p.addError("Esperado '=' após identificador")
-		return nil
-	}
-	p.nextToken()
-
-	value := p.parseExpression()
-
-	// Atualiza o valor na tabela de símbolos
-	if err := p.symbolTable.Update(name, value); err != nil {
-		p.addError(err.Error())
-	}
-
-	return &AssignmentStatement{
-		Name:  name,
-		Value: value,
-	}
-}
-
-// parseIfStatement analisa comandos `if` com suporte a `else`
 func (p *Parser) parseIfStatement() Statement {
-    p.nextToken() // Pula o 'if'
+	p.nextToken() // Pula o 'if'
 
-    // Verifica parêntese de abertura
-    if p.current.Type != token.LPAREN {
-        p.addError("Esperado '(' após 'if'")
-        return nil
-    }
-    p.nextToken()
-
-    // Parse da condição
-    condition := p.parseExpression()
-    if condition == nil {
-        return nil
-    }
-
-    // Verifica parêntese de fechamento
-    if p.current.Type != token.RPAREN {
-        p.addError("Esperado ')' após condição do if")
-        return nil
-    }
-    p.nextToken()
-
-    // Parse do bloco principal
-    if p.current.Type != token.LBRACE {
-        p.addError("Esperado '{' após condição do if")
-        return nil
-    }
-    p.nextToken()
-
-    var body []Statement
-    for p.current.Type != token.RBRACE && !p.AtEnd() {
-        stmt := p.ParseStatement()
-        if stmt != nil {
-            body = append(body, stmt)
-        }
-    }
-
-    if p.current.Type != token.RBRACE {
-        p.addError("Esperado '}' ao final do bloco if")
-        return nil
-    }
-    p.nextToken()
-
-    // Cria e retorna o nó IfStatement
-    return &IfStatement{
-        Condition: condition,
-        Body:      &BlockStatement{Statements: body},
-    }
-}
-
-func (p *Parser) parseWhileStatement() Statement {
-    whileStmt := &WhileStatement{}
-    p.nextToken() // Pula o 'while'
-
-    // Parse condition
-    if p.current.Type != token.LPAREN {
-        p.addError("Esperado '(' após 'while'")
-        return nil
-    }
-    p.nextToken()
-
-    whileStmt.Condition = p.parseExpression()
-    if whileStmt.Condition == nil {
-        p.addError("Condição inválida após 'while'")
-        return nil
-    }
-
-    if p.current.Type != token.RPAREN {
-        p.addError("Esperado ')' após condição do 'while'")
-        return nil
-    }
-    p.nextToken()
-
-    // Parse body
-    if p.current.Type != token.LBRACE {
-        p.addError("Esperado '{' após condição do 'while'")
-        return nil
-    }
-    p.nextToken()
-
-    var body []Statement
-    for p.current.Type != token.RBRACE && !p.AtEnd() {
-        stmt := p.ParseStatement()
-        if stmt != nil {
-            body = append(body, stmt)
-        }
-    }
-
-    if p.current.Type != token.RBRACE {
-        p.addError("Esperado '}' ao final do bloco 'while'")
-        return nil
-    }
-    p.nextToken()
-
-    whileStmt.Body = &BlockStatement{Statements: body}
-    return whileStmt
-}
-
-func (p *Parser) parseBlock() *BlockStatement {
-    block := &BlockStatement{}
-    p.nextToken() // Pula '{'
-    
-    for p.current.Type != token.RBRACE && !p.AtEnd() {
-        stmt := p.ParseStatement()
-        if stmt != nil {
-            block.Statements = append(block.Statements, stmt)
-        }
-    }
-    
-    if p.current.Type != token.RBRACE {
-        p.addError("Esperado '}' ao final do bloco")
-        return nil
-    }
-    p.nextToken()
-    
-    return block
-}
-// parseForStatement analisa o `for`
-func (p *Parser) parseForStatement() Statement {
-    forStmt := &ForStatement{}
-    p.nextToken() // Pula 'for'
-
-    // Exige parênteses de abertura
-    if p.current.Type != token.LPAREN {
-        p.addError("Esperado '(' após 'for'")
-        return nil
-    }
-    p.nextToken()
-
-    // Inicialização (pode ser vazia)
-    if p.current.Type != token.SEMICOLON {
-        forStmt.Init = p.ParseStatement()
-    }
-
-    // Exige primeiro ;
-    if p.current.Type != token.SEMICOLON {
-        p.addError("Esperado ';' após inicialização do for")
-        return nil
-    }
-    p.nextToken()
-
-    // Condição (pode ser vazia)
-    if p.current.Type != token.SEMICOLON {
-        forStmt.Condition = p.parseExpression()
-    }
-
-    // Exige segundo ;
-    if p.current.Type != token.SEMICOLON {
-        p.addError("Esperado ';' após condição do for")
-        return nil
-    }
-    p.nextToken()
-
-    // Atualização (pode ser vazia)
-    if p.current.Type != token.RPAREN {
-        forStmt.Update = p.ParseStatement()
-    }
-
-    // Exige parênteses de fechamento
-    if p.current.Type != token.RPAREN {
-        p.addError("Esperado ')' após cabeçalho do for")
-        return nil
-    }
-    p.nextToken()
-
-    // Exige bloco com {}
-    if p.current.Type != token.LBRACE {
-        p.addError("Esperado '{' após cabeçalho do for")
-        return nil
-    }
-    forStmt.Body = p.parseBlock()
-
-    return forStmt
-}
-// Nova função para declaração de variáveis
-func (p *Parser) ParseVariableDeclaration() Statement {
-	typeToken := p.current
+	// Verifica parêntese de abertura
+	if p.current.Type != token.LPAREN {
+		p.addError("Esperado '(' após 'if'", p.current.Line, p.current.Column)
+		return nil
+	}
 	p.nextToken()
 
-	if p.current.Type != token.IDENTIFIER {
-		p.addError("Esperado identificador após tipo")
+	// Parse da condição
+	condition := p.parseExpression()
+	if condition == nil {
 		return nil
 	}
 
-	name := p.current.Lexeme
+	// Verifica parêntese de fechamento
+	if p.current.Type != token.RPAREN {
+		p.addError("Esperado ')' após condição do if", p.current.Line, p.current.Column)
+		return nil
+	}
 	p.nextToken()
 
-	// Verifica se variável já foi declarada
-	if p.symbolTable.ExistsInCurrentScope(name) {
-		p.addError(fmt.Sprintf("Variável '%s' já declarada neste escopo", name))
+	// Parse do bloco principal
+	if p.current.Type != token.LBRACE {
+		p.addError("Esperado '{' após condição do if", p.current.Line, p.current.Column)
+		return nil
 	}
+	p.nextToken()
 
-	var value Expression
-	if p.current.Type == token.ASSIGN {
-		p.nextToken()
-		value = p.parseExpression()
-	}
-
-	// Registra na tabela de símbolos
-	err := p.symbolTable.Declare(name, SymbolInfo{
-		Name:     name,
-		Category: Variable,
-		Type:     typeToken.Lexeme,
-	})
-
-	if err != nil {
-		p.addError(err.Error())
-	}
-
-	return &VariableDeclaration{
-		Type:  typeToken.Lexeme,
-		Name:  name,
-		Value: value,
-	}
-}
-
-func (p *Parser) ParseAssignmentOrExpression() Statement {
-	name := p.current.Lexeme
-
-	if p.peekToken().Type == token.ASSIGN {
-		return p.ParseAssignment()
-	}
-
-	expr := p.parseExpression()
-
-	if ident, isIdent := expr.(*Identifier); isIdent {
-		if _, exists := p.symbolTable.Resolve(ident.Name); !exists {
-			p.addError(fmt.Sprintf("Variável '%s' não declarada", name))
+	var body []Statement
+	for p.current.Type != token.RBRACE && !p.AtEnd() {
+		stmt := p.ParseStatement()
+		if stmt != nil {
+			body = append(body, stmt)
 		}
 	}
 
-	return &ExpressionStatement{Expression: expr}
+	if p.current.Type != token.RBRACE {
+		p.addError("Esperado '}' ao final do bloco if", p.current.Line, p.current.Column)
+		return nil
+	}
+	p.nextToken()
+
+	// Cria e retorna o nó IfStatement
+	return &IfStatement{
+		Condition: condition,
+		Body:      &BlockStatement{Statements: body},
+	}
+}
+
+func (p *Parser) parseWhileStatement() Statement {
+	whileStmt := &WhileStatement{}
+	p.nextToken() // Pula o 'while'
+
+	// Parse condition
+	if p.current.Type != token.LPAREN {
+		p.addError("Esperado '(' após 'while'", p.current.Line, p.current.Column)
+		return nil
+	}
+	p.nextToken()
+
+	whileStmt.Condition = p.parseExpression()
+	if whileStmt.Condition == nil {
+		p.addError("Condição inválida após 'while'", p.current.Line, p.current.Column)
+		return nil
+	}
+
+	if p.current.Type != token.RPAREN {
+		p.addError("Esperado ')' após condição do 'while'", p.current.Line, p.current.Column)
+		return nil
+	}
+	p.nextToken()
+
+	// Parse body
+	if p.current.Type != token.LBRACE {
+		p.addError("Esperado '{' após condição do 'while'", p.current.Line, p.current.Column)
+		return nil
+	}
+	p.nextToken()
+
+	var body []Statement
+	for p.current.Type != token.RBRACE && !p.AtEnd() {
+		stmt := p.ParseStatement()
+		if stmt != nil {
+			body = append(body, stmt)
+		}
+	}
+
+	if p.current.Type != token.RBRACE {
+		p.addError("Esperado '}' ao final do bloco 'while'", p.current.Line, p.current.Column)
+		return nil
+	}
+	p.nextToken()
+
+	whileStmt.Body = &BlockStatement{Statements: body}
+	return whileStmt
+}
+
+func (p *Parser) parseBlock() *BlockStatement {
+	block := &BlockStatement{}
+	p.nextToken() // Pula '{'
+
+	for p.current.Type != token.RBRACE && !p.AtEnd() {
+		stmt := p.ParseStatement()
+		if stmt != nil {
+			block.Statements = append(block.Statements, stmt)
+		}
+	}
+
+	if p.current.Type != token.RBRACE {
+		p.addError("Esperado '}' ao final do bloco", p.current.Line, p.current.Column)
+		return nil
+	}
+	p.nextToken()
+
+	return block
+}
+
+// parseForStatement analisa o `for`
+func (p *Parser) parseForStatement() Statement {
+	forStmt := &ForStatement{}
+	p.nextToken() // Pula 'for'
+
+	// Exige parênteses de abertura
+	if p.current.Type != token.LPAREN {
+		p.addError("Esperado '(' após 'for'", p.current.Line, p.current.Column)
+		return nil
+	}
+	p.nextToken()
+
+	// Inicialização (pode ser vazia)
+	if p.current.Type != token.SEMICOLON {
+		forStmt.Init = p.ParseStatement()
+	}
+
+	// Exige primeiro ;
+	if p.current.Type != token.SEMICOLON {
+		p.addError("Esperado ';' após inicialização do for", p.current.Line, p.current.Column)
+		return nil
+	}
+	p.nextToken()
+
+	// Condição (pode ser vazia)
+	if p.current.Type != token.SEMICOLON {
+		forStmt.Condition = p.parseExpression()
+	}
+
+	// Exige segundo ;
+	if p.current.Type != token.SEMICOLON {
+		p.addError("Esperado ';' após condição do for", p.current.Line, p.current.Column)
+		return nil
+	}
+	p.nextToken()
+
+	// Atualização (pode ser vazia)
+	if p.current.Type != token.RPAREN {
+		forStmt.Update = p.ParseStatement()
+	}
+
+	// Exige parênteses de fechamento
+	if p.current.Type != token.RPAREN {
+		p.addError("Esperado ')' após cabeçalho do for", p.current.Line, p.current.Column)
+		return nil
+	}
+	p.nextToken()
+
+	// Exige bloco com {}
+	if p.current.Type != token.LBRACE {
+		p.addError("Esperado '{' após cabeçalho do for", p.current.Line, p.current.Column)
+		return nil
+	}
+	forStmt.Body = p.parseBlock()
+
+	return forStmt
+}
+
+// Nova função para declaração de variáveis
+func (p *Parser) ParseVariableDeclaration() Statement {
+    typeToken := p.current
+    p.nextToken()
+
+    if p.current.Type != token.IDENTIFIER {
+        p.addError(fmt.Sprintf("Esperado nome da variável após tipo '%s'", typeToken.Lexeme),
+                  typeToken.Line, typeToken.Column)
+        return nil
+    }
+
+    nameToken := p.current
+    
+    // Avança para o próximo token antes de verificar a atribuição
+    p.nextToken()
+
+    var value Expression
+    if p.current.Type == token.ASSIGN {
+        p.nextToken()
+        value = p.parseExpression()
+    }
+
+    // Declara a variável na tabela de símbolos
+    if err := p.symbolTable.Declare(nameToken.Lexeme, SymbolInfo{
+        Name:      nameToken.Lexeme,
+        Type:      typeToken.Lexeme,
+        Category:  Variable,
+        DefinedAt: nameToken.Line,
+    }); err != nil {
+        p.addError(err.Error(), nameToken.Line, nameToken.Column)
+    }
+
+    return &VariableDeclaration{
+        Type:  typeToken.Lexeme,
+        Name:  nameToken.Lexeme,
+        Value: value,
+        Token: nameToken,
+    }
+}
+func isEndOfDeclaration(tok token.Token) bool {
+	return tok.Type == token.SEMICOLON ||
+		tok.Type == token.EOF ||
+		tok.Type == token.TYPE
 }
 
 // parseReturnStatement processa declarações de retorno
@@ -467,10 +581,24 @@ func (p *Parser) Parse() []Statement {
 }
 
 // Função auxiliar para registrar erros
-func (p *Parser) addError(msg string) {
-    p.errors = append(p.errors, ParseError{
-        Message: msg,
-        Line:    p.current.Line,
-        Token:   p.current.Lexeme,
-    })
+// Em parser/parser.go
+func (p *Parser) addError(msg string, line int, column int) {
+	p.Errors = append(p.Errors, ParseError{
+		Message: msg,
+		Line:    line,
+		Column:  column,
+		Token:   p.current.Lexeme,
+	})
+}
+
+// Em parser/parser.go
+// Em parser/parser.go
+func (p *Parser) skipUntil(stopType token.TokenType) {
+	for !p.AtEnd() && p.current.Type != stopType && p.current.Type != token.EOF {
+		p.nextToken()
+	}
+	// Não avança o EOF, apenas outros tokens de parada
+	if !p.AtEnd() && p.current.Type == stopType {
+		p.nextToken()
+	}
 }

@@ -1,12 +1,10 @@
 package lexer
 
 import (
-	"fmt"
 	"simple-compiler/token"
 	"unicode"
 )
 
-// Lexer representa o analisador léxico
 type Lexer struct {
 	input        string
 	position     int
@@ -16,32 +14,43 @@ type Lexer struct {
 	column       int
 }
 
-// New cria um novo lexer
 func New(input string) *Lexer {
-	l := &Lexer{input: input, line: 1}
+	l := &Lexer{input: input, line: 1, column: 1}
 	l.readChar()
 	return l
 }
 
-// Avança para o próximo caractere
 func (l *Lexer) readChar() {
 	if l.readPosition >= len(l.input) {
-		l.ch = 0
+		l.ch = 0 // EOF
 	} else {
 		l.ch = l.input[l.readPosition]
 	}
 	l.position = l.readPosition
 	l.readPosition++
+
+	// Atualiza posição apenas se não for EOF
+	if l.ch != 0 {
+		if l.ch == '\n' {
+			l.line++
+			l.column = 1
+		} else {
+			l.column++
+		}
+	}
 }
 
-// Pula espaços em branco
 func (l *Lexer) skipWhitespace() {
-	for unicode.IsSpace(rune(l.ch)) {
+	for unicode.IsSpace(rune(l.ch)) && l.ch != 0 {
+		// Mantém o controle preciso de linhas/colunas
+		if l.ch == '\n' {
+			l.line++
+			l.column = 0
+		}
 		l.readChar()
 	}
 }
 
-// Palavras-chave
 var keywords = map[string]token.TokenType{
 	"if":     token.IF,
 	"else":   token.ELSE,
@@ -51,27 +60,56 @@ var keywords = map[string]token.TokenType{
 	"float":  token.TYPE,
 	"void":   token.TYPE,
 	"return": token.RETURN,
+	"string": token.TYPE,
+	"bool":   token.TYPE,
+	"true":   token.BOOLEAN,
+	"false":  token.BOOLEAN,
 }
 
-// Lê um identificador e verifica se é uma palavra-chave
 func (l *Lexer) readIdentifier() string {
 	start := l.position
-	for unicode.IsLetter(rune(l.ch)) {
+	for unicode.IsLetter(rune(l.ch)) || unicode.IsDigit(rune(l.ch)) || l.ch == '_' {
 		l.readChar()
 	}
 	return l.input[start:l.position]
 }
 
-// Lê um número
+func (l *Lexer) readString() string {
+	l.readChar() // Pula a aspa inicial
+	start := l.position
+
+	for l.ch != '"' && l.ch != 0 {
+		l.readChar()
+	}
+
+	if l.ch == '"' {
+		str := l.input[start:l.position]
+		l.readChar() // Pula a aspa final
+		if str == "" {
+			return " " // Retorna espaço para strings vazias
+		}
+		return str
+	}
+	return "" // Indica string não finalizada
+}
+
 func (l *Lexer) readNumber() string {
 	start := l.position
 	for unicode.IsDigit(rune(l.ch)) {
 		l.readChar()
 	}
+
+	// Parte decimal
+	if l.ch == '.' {
+		l.readChar()
+		for unicode.IsDigit(rune(l.ch)) {
+			l.readChar()
+		}
+	}
+
 	return l.input[start:l.position]
 }
 
-// Lê o próximo caractere sem avançar
 func (l *Lexer) peekChar() byte {
 	if l.readPosition >= len(l.input) {
 		return 0
@@ -79,74 +117,117 @@ func (l *Lexer) peekChar() byte {
 	return l.input[l.readPosition]
 }
 
-// Próximo token do input
 func (l *Lexer) NextToken() token.Token {
 	l.skipWhitespace()
 
-	var tok token.Token
-	fmt.Printf("Processando char: %q\n", l.ch) // Antes do switch
-
+	tok := token.Token{
+		Line:   l.line,
+		Column: l.column,
+	}
 	switch l.ch {
-	case '+':
-		tok = token.Token{Type: token.PLUS, Lexeme: "+"}
-	case '-':
-		tok = token.Token{Type: token.MINUS, Lexeme: "-"}
-	case '*':
-		tok = token.Token{Type: token.MULT, Lexeme: "*"}
-	case '/':
-		tok = token.Token{Type: token.DIV, Lexeme: "/"}
+	case 0:
+		tok.Type = token.EOF
+		tok.Lexeme = ""
+    case '"':
+        str := l.readString()
+        if str == "" {
+            tok.Type = token.ILLEGAL
+            tok.Lexeme = "string não finalizada"
+        } else {
+            tok.Type = token.STRING_LITERAL
+            tok.Lexeme = str
+        }
+        return tok
 	case '=':
 		if l.peekChar() == '=' {
+			tok.Lexeme = "=="
+			tok.Type = token.EQ
 			l.readChar()
-			tok = token.Token{Type: token.EQ, Lexeme: "=="}
 		} else {
-			tok = token.Token{Type: token.ASSIGN, Lexeme: "="}
+			tok.Lexeme = "="
+			tok.Type = token.ASSIGN
 		}
+	case '!':
+		if l.peekChar() == '=' {
+			tok.Lexeme = "!="
+			tok.Type = token.NOT_EQ
+			l.readChar()
+		} else {
+			tok.Lexeme = "!"
+			tok.Type = token.NOT
+		}
+	case '+':
+		tok.Lexeme = "+"
+		tok.Type = token.PLUS
+	case '-':
+		tok.Lexeme = "-"
+		tok.Type = token.MINUS
+	case '*':
+		tok.Lexeme = "*"
+		tok.Type = token.MULT
+	case '/':
+		tok.Lexeme = "/"
+		tok.Type = token.DIV
 	case '>':
 		if l.peekChar() == '=' {
+			tok.Lexeme = ">="
+			tok.Type = token.GTE
 			l.readChar()
-			tok = token.Token{Type: token.GTE, Lexeme: ">="}
 		} else {
-			tok = token.Token{Type: token.GT, Lexeme: ">"}
+			tok.Lexeme = ">"
+			tok.Type = token.GT
 		}
 	case '<':
 		if l.peekChar() == '=' {
+			tok.Lexeme = "<="
+			tok.Type = token.LTE
 			l.readChar()
-			tok = token.Token{Type: token.LTE, Lexeme: "<="}
 		} else {
-			tok = token.Token{Type: token.LT, Lexeme: "<"}
+			tok.Lexeme = "<"
+			tok.Type = token.LT
 		}
 	case ';':
-		tok = token.Token{Type: token.SEMICOLON, Lexeme: ";"}
-		l.readChar()
+		tok.Lexeme = ";"
+		tok.Type = token.SEMICOLON
 	case '(':
-		tok = token.Token{Type: token.LPAREN, Lexeme: "("}
+		tok.Lexeme = "("
+		tok.Type = token.LPAREN
 	case ')':
-		tok = token.Token{Type: token.RPAREN, Lexeme: ")"}
+		tok.Lexeme = ")"
+		tok.Type = token.RPAREN
 	case '{':
-		tok = token.Token{Type: token.LBRACE, Lexeme: "{"}
+		tok.Lexeme = "{"
+		tok.Type = token.LBRACE
 	case '}':
-		tok = token.Token{Type: token.RBRACE, Lexeme: "}"}
-	case 0:
-		tok = token.Token{Type: token.EOF, Lexeme: ""}
-	default:
-		if unicode.IsLetter(rune(l.ch)) {
-			lexeme := l.readIdentifier()
-			tokType := token.IDENTIFIER
-			if keyword, ok := keywords[lexeme]; ok {
-				tokType = keyword
-			}
-			tok = token.Token{Type: tokType, Lexeme: lexeme}
-			return tok
-		} else if unicode.IsDigit(rune(l.ch)) {
-			lexeme := l.readNumber()
-			tok = token.Token{Type: token.NUMBER, Lexeme: lexeme}
-			return tok
-		} else {
-			tok = token.Token{Type: token.ILLEGAL, Lexeme: string(l.ch)}
-		}
-	}
+		tok.Lexeme = "}"
+		tok.Type = token.RBRACE
+    default:
+        if unicode.IsLetter(rune(l.ch)) {
+            tok.Lexeme = l.readIdentifier()
+            if kw, ok := keywords[tok.Lexeme]; ok {
+                tok.Type = kw
+            } else {
+                tok.Type = token.IDENTIFIER
+            }
+            return tok
+        } else if unicode.IsDigit(rune(l.ch)) {
+            tok.Lexeme = l.readNumber()
+            tok.Type = token.NUMBER
+            return tok
+        } else if l.ch != 0 {
+            tok.Type = token.ILLEGAL
+            tok.Lexeme = string(l.ch)
+            l.readChar()
+        }
+    }
 
-	l.readChar()
-	return tok
+    if tok.Type == "" {
+        tok.Type = token.EOF
+    }
+    
+    if tok.Type != token.ILLEGAL && tok.Type != token.EOF {
+        l.readChar()
+    }
+    
+    return tok
 }
