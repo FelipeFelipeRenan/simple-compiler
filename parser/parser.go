@@ -12,14 +12,20 @@ type Parser struct {
 	pos         int
 	current     token.Token
 	symbolTable *SymbolTable
-	errors      []string
+	errors      []ParseError
+}
+
+type ParseError struct {
+	Message string
+	Line int
+	Token string
 }
 
 func New(tokens []token.Token) *Parser {
 	p := &Parser{
 		tokens:      tokens,
 		symbolTable: NewSymbolTable(),
-		errors:      make([]string, 0),
+		errors:      make([]ParseError, 0),
 	}
 	p.nextToken() // Inicializa o primeiro token
 	return p
@@ -462,5 +468,9 @@ func (p *Parser) Parse() []Statement {
 
 // Função auxiliar para registrar erros
 func (p *Parser) addError(msg string) {
-	p.errors = append(p.errors, msg)
+    p.errors = append(p.errors, ParseError{
+        Message: msg,
+        Line:    p.current.Line,
+        Token:   p.current.Lexeme,
+    })
 }

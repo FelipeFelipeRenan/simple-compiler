@@ -7,6 +7,8 @@ type TokenType string
 type Token struct {
 	Type   TokenType
 	Lexeme string
+	Line int // linha para mapear os erros
+	Column int // coluna para mapear os erros
 }
 
 // Definição dos tipos de tokens.

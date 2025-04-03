@@ -1,5 +1,5 @@
 int x = 1 + 2 * 3
 int i = 0
-for(i; i < 10; i = i + 1){
+for( ; ; ){
     x = 10
 }

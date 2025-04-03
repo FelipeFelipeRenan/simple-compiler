@@ -12,11 +12,13 @@ type Lexer struct {
 	position     int
 	readPosition int
 	ch           byte
+	line         int
+	column       int
 }
 
 // New cria um novo lexer
 func New(input string) *Lexer {
-	l := &Lexer{input: input}
+	l := &Lexer{input: input, line: 1}
 	l.readChar()
 	return l
 }
@@ -45,10 +47,10 @@ var keywords = map[string]token.TokenType{
 	"else":   token.ELSE,
 	"for":    token.FOR,
 	"while":  token.WHILE,
-	"int":    token.TYPE,   
-	"float":  token.TYPE,    
-	"void":   token.TYPE,    
-	"return": token.RETURN,  
+	"int":    token.TYPE,
+	"float":  token.TYPE,
+	"void":   token.TYPE,
+	"return": token.RETURN,
 }
 
 // Lê um identificador e verifica se é uma palavra-chave
@@ -84,7 +86,6 @@ func (l *Lexer) NextToken() token.Token {
 	var tok token.Token
 	fmt.Printf("Processando char: %q\n", l.ch) // Antes do switch
 
-
 	switch l.ch {
 	case '+':
 		tok = token.Token{Type: token.PLUS, Lexeme: "+"}
@@ -116,8 +117,8 @@ func (l *Lexer) NextToken() token.Token {
 			tok = token.Token{Type: token.LT, Lexeme: "<"}
 		}
 	case ';':
-        tok = token.Token{Type: token.SEMICOLON, Lexeme: ";"}
-        l.readChar()
+		tok = token.Token{Type: token.SEMICOLON, Lexeme: ";"}
+		l.readChar()
 	case '(':
 		tok = token.Token{Type: token.LPAREN, Lexeme: "("}
 	case ')':
