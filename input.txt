@@ -1,11 +1,2 @@
-int x = 1
-float y = 3.14
-string nome = ""
-bool ativo = true
-
-for(x; x < 10; x = x + 1){
-    y = y + 1
-}
-
-int test1 = 10
-int test2 = test1 + 5 
+int x = 10
+int y = x + 5 
