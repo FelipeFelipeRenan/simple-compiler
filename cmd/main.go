@@ -10,7 +10,8 @@ import (
 )
 
 func main() {
-	fileName := "input.txt"
+
+	fileName := os.Args[1]
 
 	// 1. Ler o arquivo fonte
 	source, err := os.ReadFile(fileName)
@@ -28,16 +29,16 @@ func main() {
 	for i := 0; i < maxTokens; i++ {
 		tok := l.NextToken()
 		tokens = append(tokens, tok)
-		
+
 		// Proteção contra tokens repetidos que podem indicar loop
-		if i > 0 && tokens[i].Type == tokens[i-1].Type && 
-		   tokens[i].Lexeme == tokens[i-1].Lexeme &&
-		   tokens[i].Type != token.EOF {
-			fmt.Fprintf(os.Stderr, "Erro: token repetido '%s' na linha %d\n", 
-				      tok.Lexeme, tok.Line)
+		if i > 0 && tokens[i].Type == tokens[i-1].Type &&
+			tokens[i].Lexeme == tokens[i-1].Lexeme &&
+			tokens[i].Type != token.EOF {
+			fmt.Fprintf(os.Stderr, "Erro: token repetido '%s' na linha %d\n",
+				tok.Lexeme, tok.Line)
 			os.Exit(1)
 		}
-		
+
 		if tok.Type == token.EOF {
 			break
 		}
@@ -53,42 +54,42 @@ func main() {
 	statements := p.Parse()
 
 	// 4. Processamento de erros
-    // Processamento de erros
+	// Processamento de erros
 	if len(p.Errors) > 0 {
-        fmt.Println("\nErros encontrados:")
-        
-        // Filtra erros duplicados
-        errorSet := make(map[string]parser.ParseError)
-        for _, err := range p.Errors {
-            key := fmt.Sprintf("%d:%d:%s", err.Line, err.Column, err.Message)
-            if _, exists := errorSet[key]; !exists && err.Line > 0 {
-                errorSet[key] = err
-            }
-        }
+		fmt.Println("\nErros encontrados:")
 
-        // Converte para slice e ordena
-        var uniqueErrors []parser.ParseError
-        for _, err := range errorSet {
-            uniqueErrors = append(uniqueErrors, err)
-        }
-        sortErrorsByPosition(uniqueErrors)
+		// Filtra erros duplicados
+		errorSet := make(map[string]parser.ParseError)
+		for _, err := range p.Errors {
+			key := fmt.Sprintf("%d:%d:%s", err.Line, err.Column, err.Message)
+			if _, exists := errorSet[key]; !exists && err.Line > 0 {
+				errorSet[key] = err
+			}
+		}
 
-        // Exibe erros
-        for _, err := range uniqueErrors {
-            fmt.Printf("🔴 Linha %d:%d - %s\n", err.Line, err.Column, err.Message)
-        }
-        os.Exit(1)
-    }
+		// Converte para slice e ordena
+		var uniqueErrors []parser.ParseError
+		for _, err := range errorSet {
+			uniqueErrors = append(uniqueErrors, err)
+		}
+		sortErrorsByPosition(uniqueErrors)
 
-    // Exibe AST se não houver erros
-    if len(statements) > 0 {
-        fmt.Println("\nAST gerada com sucesso:")
-        for _, stmt := range statements {
-            fmt.Println(stmt.String())
-        }
-    } else {
-        fmt.Println("Nenhuma declaração válida encontrada")
-    }
+		// Exibe erros
+		for _, err := range uniqueErrors {
+			fmt.Printf("🔴 Linha %d:%d - %s\n", err.Line, err.Column, err.Message)
+		}
+		os.Exit(1)
+	}
+
+	// Exibe AST se não houver erros
+	if len(statements) > 0 {
+		fmt.Println("\nAST gerada com sucesso:")
+		for _, stmt := range statements {
+			fmt.Println(stmt.String())
+		}
+	} else {
+		fmt.Println("Nenhuma declaração válida encontrada")
+	}
 
 	// 5. Exibição da AST (apenas se não houver erros)
 	if len(statements) > 0 {
