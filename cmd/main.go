@@ -7,10 +7,11 @@ import (
 	"simple-compiler/parser"
 	"simple-compiler/token"
 	"sort"
+	"time"
 )
 
 func main() {
-
+	startingTime := time.Now()
 	fileName := os.Args[1]
 
 	// 1. Ler o arquivo fonte
@@ -102,6 +103,8 @@ func main() {
 	} else {
 		fmt.Println("Nenhuma declaração válida encontrada no código fonte")
 	}
+elapsed := time.Since(startingTime)
+fmt.Println("Tempo de compilação: ", elapsed)
 }
 
 // Função para filtrar erros duplicados
