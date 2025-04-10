@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	code_generator "simple-compiler/intermediate-code-generation"
 	"simple-compiler/lexer"
 	"simple-compiler/parser"
 	"simple-compiler/token"
@@ -102,6 +103,22 @@ func main() {
 		}
 	} else {
 		fmt.Println("Nenhuma declaração válida encontrada no código fonte")
+	}
+
+	if len(p.Errors) == 0{
+
+		generator := code_generator.NewCodeGenerator()
+		intermediate := generator.GenerateFromAST(statements)
+
+		fmt.Println("\nCódigo intermediario:")
+		for _, instr := range intermediate.Instructions {
+			if instr.Op == code_generator.ASSIGN{
+				fmt.Printf("%s = %s\n", instr.Dest, instr.Arg1)
+			} else{
+				fmt.Printf("%s = %s %s %s\n", instr.Dest, instr.Arg1, instr.Op, instr.Arg2)
+			}
+			
+		}
 	}
 elapsed := time.Since(startingTime)
 fmt.Println("Tempo de compilação: ", elapsed)

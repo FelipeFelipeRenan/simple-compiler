@@ -11,6 +11,15 @@ const(
 	MULT Operation = "*"
 	DIV Operation = "/"
 
+	GOTO    Operation = "goto"
+    IFLT    Operation = "if<"
+    IFLE    Operation = "if<="
+    IFGT    Operation = "if>"
+    IFGE    Operation = "if>="
+    IFEQ    Operation = "if=="
+    IFNE    Operation = "if!="
+    LABEL   Operation = "label"
+
 	// definir outras operações
 )
 

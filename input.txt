@@ -6,3 +6,6 @@ bool ativo = true
 for(x; x < 10; x = x + 1){
     y = y + 1
 }
+
+int test1 = 10
+int test2 = test1 + 5 
