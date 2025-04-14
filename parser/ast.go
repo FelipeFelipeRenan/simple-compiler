@@ -387,3 +387,9 @@ func tokenTypeFromOperator(op string) token.TokenType {
 }
 
 // Implemente para outros tipos conforme necessário
+
+type CallExpression struct {
+    FunctionName string
+    Arguments    []Expression
+    Token        token.Token
+}

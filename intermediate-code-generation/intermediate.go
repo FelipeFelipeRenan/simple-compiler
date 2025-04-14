@@ -4,46 +4,52 @@ import "fmt"
 
 type Operation string
 
-const(
+const (
 	ASSIGN Operation = "="
-	ADD Operation = "+"
-	SUB Operation = "-"
-	MULT Operation = "*"
-	DIV Operation = "/"
+	ADD    Operation = "+"
+	SUB    Operation = "-"
+	MULT   Operation = "*"
+	DIV    Operation = "/"
 
-	GOTO    Operation = "goto"
-    IFLT    Operation = "if<"
-    IFLE    Operation = "if<="
-    IFGT    Operation = "if>"
-    IFGE    Operation = "if>="
-    IFEQ    Operation = "if=="
-    IFNE    Operation = "if!="
-    LABEL   Operation = "label"
+	GOTO     Operation = "goto"
+	IFLT     Operation = "if<"
+	IFLE     Operation = "if<="
+	IFGT     Operation = "if>"
+	IFGE     Operation = "if>="
+	IFEQ     Operation = "if=="
+	IFNE     Operation = "if!="
+	IF_FALSE Operation = "if_false"
+	LABEL    Operation = "label"
+	RETURN   Operation = "return"
+	CALL     Operation = "call"
+	// Operadores unários
+	NEG Operation = "neg" // Para -
+	NOT Operation = "not" // Para !
 
 	// definir outras operações
 )
 
 type Instruction struct {
-	Op Operation
-	Dest string // Destino: Pode ser uma variavel ou um temporario
-	Arg1 string // Primeiro argumento da operação
-	Arg2 string // Segundo argumento, em operações binarias
-	Label string // Para instruções de fluxo de controle
+	Op    Operation
+	Dest  string // Destino (para atribuições)
+	Arg1  string // Primeiro argumento
+	Arg2  string // Segundo argumento
+	Label string // Para jumps e labels
+	Type  string // Tipo do resultado (opcional)
 }
-
 type IntermediateRep struct {
 	Instructions []Instruction
-	TempCount int // contador para variavies temporarias 
+	TempCount    int // contador para variavies temporarias
 }
 
-func NewIR() *IntermediateRep{
+func NewIR() *IntermediateRep {
 	return &IntermediateRep{
 		Instructions: make([]Instruction, 0),
-		TempCount: 0,
+		TempCount:    0,
 	}
 }
 
-func (ir *IntermediateRep) NewTemp()string{
+func (ir *IntermediateRep) NewTemp() string {
 	temp := fmt.Sprintf("t%d", ir.TempCount)
 	ir.TempCount++
 	return temp

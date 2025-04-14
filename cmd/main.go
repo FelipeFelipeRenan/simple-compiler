@@ -104,22 +104,27 @@ func main() {
 	} else {
 		fmt.Println("Nenhuma declaração válida encontrada no código fonte")
 	}
-
-	if len(p.Errors) == 0{
-
-		generator := code_generator.NewCodeGenerator()
-		intermediate := generator.GenerateFromAST(statements)
-
-		fmt.Println("\nCódigo intermediario:")
-		for _, instr := range intermediate.Instructions {
-			if instr.Op == code_generator.ASSIGN{
-				fmt.Printf("%s = %s\n", instr.Dest, instr.Arg1)
-			} else{
-				fmt.Printf("%s = %s %s %s\n", instr.Dest, instr.Arg1, instr.Op, instr.Arg2)
-			}
-			
-		}
-	}
+    if len(p.Errors) == 0 {
+        generator := ir.NewCodeGenerator()
+        intermediate := generator.GenerateFromAST(statements)
+        
+        fmt.Println("\nCódigo Intermediário Gerado:")
+        for _, instr := range intermediate.Instructions {
+            switch instr.Op {
+            case ir.ASSIGN:
+                fmt.Printf("%s = %s\n", instr.Dest, instr.Arg1)
+            case ir.LABEL:
+                fmt.Printf("%s:\n", instr.Label)
+            case ir.IF_FALSE:
+                fmt.Printf("if_false %s goto %s\n", instr.Arg1, instr.Label)
+            case ir.GOTO:
+                fmt.Printf("goto %s\n", instr.Label)
+            default:
+                fmt.Printf("%s = %s %s %s\n", 
+                    instr.Dest, instr.Arg1, instr.Op, instr.Arg2)
+            }
+        }
+    }
 elapsed := time.Since(startingTime)
 fmt.Println("Tempo de compilação: ", elapsed)
 }
