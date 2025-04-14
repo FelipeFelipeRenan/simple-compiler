@@ -30,12 +30,11 @@ const (
 )
 
 type Instruction struct {
-	Op    Operation
-	Dest  string // Destino (para atribuições)
-	Arg1  string // Primeiro argumento
-	Arg2  string // Segundo argumento
-	Label string // Para jumps e labels
-	Type  string // Tipo do resultado (opcional)
+    Op     Operation
+    Dest   string   // Para atribuições
+    Arg1   string   // Primeiro operando
+    Arg2   string   // Segundo operando ou lista de args
+    Label  string   // Para controle de fluxo
 }
 type IntermediateRep struct {
 	Instructions []Instruction

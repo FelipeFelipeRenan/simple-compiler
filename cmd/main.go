@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	code_generator "simple-compiler/intermediate-code-generation"
+	icg "simple-compiler/intermediate-code-generation" // Descomente esta linha
 	"simple-compiler/lexer"
 	"simple-compiler/parser"
 	"simple-compiler/token"
@@ -13,6 +13,10 @@ import (
 
 func main() {
 	startingTime := time.Now()
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "Uso: go run cmd/main.go <arquivo>")
+		os.Exit(1)
+	}
 	fileName := os.Args[1]
 
 	// 1. Ler o arquivo fonte
@@ -22,33 +26,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 2. Análise Léxica com proteção contra loops
-	maxTokens := len(source) * 3 // Limite generoso para evitar loops infinitos
+	// 2. Análise Léxica
 	l := lexer.New(string(source))
 	var tokens []token.Token
-
-	// Coleta tokens com proteção contra loops
-	for i := 0; i < maxTokens; i++ {
+	for {
 		tok := l.NextToken()
 		tokens = append(tokens, tok)
-
-		// Proteção contra tokens repetidos que podem indicar loop
-		if i > 0 && tokens[i].Type == tokens[i-1].Type &&
-			tokens[i].Lexeme == tokens[i-1].Lexeme &&
-			tokens[i].Type != token.EOF {
-			fmt.Fprintf(os.Stderr, "Erro: token repetido '%s' na linha %d\n",
-				tok.Lexeme, tok.Line)
-			os.Exit(1)
-		}
-
 		if tok.Type == token.EOF {
 			break
 		}
-	}
-
-	if len(tokens) >= maxTokens {
-		fmt.Fprintln(os.Stderr, "Erro: limite máximo de tokens atingido - possível loop infinito")
-		os.Exit(1)
 	}
 
 	// 3. Análise Sintática
@@ -56,79 +42,52 @@ func main() {
 	statements := p.Parse()
 
 	// 4. Processamento de erros
-	// Processamento de erros
 	if len(p.Errors) > 0 {
 		fmt.Println("\nErros encontrados:")
-
-		// Filtra erros duplicados
-		errorSet := make(map[string]parser.ParseError)
+		sortErrorsByPosition(p.Errors)
 		for _, err := range p.Errors {
-			key := fmt.Sprintf("%d:%d:%s", err.Line, err.Column, err.Message)
-			if _, exists := errorSet[key]; !exists && err.Line > 0 {
-				errorSet[key] = err
-			}
-		}
-
-		// Converte para slice e ordena
-		var uniqueErrors []parser.ParseError
-		for _, err := range errorSet {
-			uniqueErrors = append(uniqueErrors, err)
-		}
-		sortErrorsByPosition(uniqueErrors)
-
-		// Exibe erros
-		for _, err := range uniqueErrors {
 			fmt.Printf("🔴 Linha %d:%d - %s\n", err.Line, err.Column, err.Message)
 		}
 		os.Exit(1)
 	}
 
-	// Exibe AST se não houver erros
+	// 5. Exibir AST
 	if len(statements) > 0 {
 		fmt.Println("\nAST gerada com sucesso:")
 		for _, stmt := range statements {
 			fmt.Println(stmt.String())
 		}
-	} else {
-		fmt.Println("Nenhuma declaração válida encontrada")
 	}
 
-	// 5. Exibição da AST (apenas se não houver erros)
-	if len(statements) > 0 {
-		fmt.Println("\nAST gerada com sucesso:")
-		for _, stmt := range statements {
-			if stmt != nil {
-				fmt.Println(stmt.String())
+	// 6. Geração de código intermediário
+	if len(p.Errors) == 0 {
+		generator := icg.NewCodeGenerator()
+		intermediate := generator.GenerateFromAST(statements)
+		
+		fmt.Println("\nCódigo Intermediário Gerado:")
+		for _, instr := range intermediate.Instructions {
+			switch instr.Op {
+			case icg.ASSIGN:
+				fmt.Printf("%s = %s\n", instr.Dest, instr.Arg1)
+			case icg.LABEL:
+				fmt.Printf("%s:\n", instr.Label)
+			case icg.IF_FALSE:
+				fmt.Printf("if_false %s goto %s\n", instr.Arg1, instr.Label)
+			case icg.GOTO:
+				fmt.Printf("goto %s\n", instr.Label)
+			case icg.CALL:
+				fmt.Printf("%s = call %s(%s)\n", instr.Dest, instr.Arg1, instr.Arg2)
+			default:
+				fmt.Printf("%s = %s %s %s\n", instr.Dest, instr.Arg1, instr.Op, instr.Arg2)
 			}
 		}
-	} else {
-		fmt.Println("Nenhuma declaração válida encontrada no código fonte")
 	}
-    if len(p.Errors) == 0 {
-        generator := ir.NewCodeGenerator()
-        intermediate := generator.GenerateFromAST(statements)
-        
-        fmt.Println("\nCódigo Intermediário Gerado:")
-        for _, instr := range intermediate.Instructions {
-            switch instr.Op {
-            case ir.ASSIGN:
-                fmt.Printf("%s = %s\n", instr.Dest, instr.Arg1)
-            case ir.LABEL:
-                fmt.Printf("%s:\n", instr.Label)
-            case ir.IF_FALSE:
-                fmt.Printf("if_false %s goto %s\n", instr.Arg1, instr.Label)
-            case ir.GOTO:
-                fmt.Printf("goto %s\n", instr.Label)
-            default:
-                fmt.Printf("%s = %s %s %s\n", 
-                    instr.Dest, instr.Arg1, instr.Op, instr.Arg2)
-            }
-        }
-    }
-elapsed := time.Since(startingTime)
-fmt.Println("Tempo de compilação: ", elapsed)
+
+	elapsed := time.Since(startingTime)
+	fmt.Printf("\nTempo de compilação: %v\n", elapsed)
 }
 
+// ... (mantenha as funções filterErrors e sortErrorsByPosition como estão)
 // Função para filtrar erros duplicados
 func filterErrors(errors []parser.ParseError) []parser.ParseError {
 	var filtered []parser.ParseError

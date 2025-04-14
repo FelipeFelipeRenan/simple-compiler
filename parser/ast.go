@@ -393,3 +393,13 @@ type CallExpression struct {
     Arguments    []Expression
     Token        token.Token
 }
+
+func (c *CallExpression) exprNode() {}
+func (c *CallExpression) GetToken() token.Token { return c.Token }
+func (c *CallExpression) String() string {
+    args := make([]string, len(c.Arguments))
+    for i, arg := range c.Arguments {
+        args[i] = arg.String()
+    }
+    return fmt.Sprintf("%s(%s)", c.FunctionName, strings.Join(args, ", "))
+}
