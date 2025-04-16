@@ -8,6 +8,7 @@ import (
 	"simple-compiler/parser"
 	"simple-compiler/token"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -60,28 +61,12 @@ func main() {
 	}
 
 	// 6. Geração de código intermediário
-	if len(p.Errors) == 0 {
-		generator := icg.NewCodeGenerator()
-		intermediate := generator.GenerateFromAST(statements)
-		
-		fmt.Println("\nCódigo Intermediário Gerado:")
-		for _, instr := range intermediate.Instructions {
-			switch instr.Op {
-			case icg.ASSIGN:
-				fmt.Printf("%s = %s\n", instr.Dest, instr.Arg1)
-			case icg.LABEL:
-				fmt.Printf("%s:\n", instr.Label)
-			case icg.IF_FALSE:
-				fmt.Printf("if_false %s goto %s\n", instr.Arg1, instr.Label)
-			case icg.GOTO:
-				fmt.Printf("goto %s\n", instr.Label)
-			case icg.CALL:
-				fmt.Printf("%s = call %s(%s)\n", instr.Dest, instr.Arg1, instr.Arg2)
-			default:
-				fmt.Printf("%s = %s %s %s\n", instr.Dest, instr.Arg1, instr.Op, instr.Arg2)
-			}
-		}
-	}
+// Modifique a parte da geração de código no main():
+if len(p.Errors) == 0 {
+    generator := icg.NewCodeGenerator()
+    intermediate := generator.GenerateFromAST(statements)
+    printLLVMIR(intermediate)
+}
 
 	elapsed := time.Since(startingTime)
 	fmt.Printf("\nTempo de compilação: %v\n", elapsed)
@@ -112,3 +97,59 @@ func sortErrorsByPosition(errors []parser.ParseError) {
 		return errors[i].Line < errors[j].Line
 	})
 }
+
+// Adicione esta função para imprimir a IR
+func printLLVMIR(ir *icg.IntermediateRep) {
+    fmt.Println("\n; Generated LLVM IR")
+    
+    for _, fn := range ir.Functions {
+        // Print function header
+        params := make([]string, len(fn.Params))
+        for i, p := range fn.Params {
+            params[i] = fmt.Sprintf("%s %s", p.Type, p.Name)
+        }
+        
+        fmt.Printf("\ndefine %s @%s(%s) {\n", 
+            fn.ReturnType, fn.Name, strings.Join(params, ", "))
+        
+        // Print basic blocks
+        for _, block := range fn.Blocks {
+            if block.Label != "" {
+                fmt.Printf("%s:\n", block.Label)
+            }
+            
+            // Print instructions
+            for _, inst := range block.Instructions {
+                if inst.Dest != "" {
+                    fmt.Printf("  %s = ", inst.Dest)
+                } else {
+                    fmt.Printf("  ")
+                }
+                
+                fmt.Printf("%s %s", inst.Op, inst.Type)
+                
+                if len(inst.Args) > 0 {
+                    fmt.Printf(" %s", strings.Join(inst.Args, ", "))
+                }
+                
+                if inst.Comment != "" {
+                    fmt.Printf(" ; %s", inst.Comment)
+                }
+                
+                fmt.Println()
+            }
+            
+            // Print terminator
+            if block.Terminator != nil {
+                fmt.Printf("  %s %s", block.Terminator.Op, block.Terminator.Type)
+                if len(block.Terminator.Args) > 0 {
+                    fmt.Printf(" %s", strings.Join(block.Terminator.Args, ", "))
+                }
+                fmt.Println()
+            }
+        }
+        
+        fmt.Println("}")
+    }
+}
+

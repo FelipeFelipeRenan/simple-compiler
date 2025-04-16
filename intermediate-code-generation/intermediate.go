@@ -2,54 +2,78 @@ package intermediatecodegeneration
 
 import "fmt"
 
-type Operation string
+type Type string
 
 const (
-	ASSIGN Operation = "="
-	ADD    Operation = "+"
-	SUB    Operation = "-"
-	MULT   Operation = "*"
-	DIV    Operation = "/"
-
-	GOTO     Operation = "goto"
-	IFLT     Operation = "if<"
-	IFLE     Operation = "if<="
-	IFGT     Operation = "if>"
-	IFGE     Operation = "if>="
-	IFEQ     Operation = "if=="
-	IFNE     Operation = "if!="
-	IF_FALSE Operation = "if_false"
-	LABEL    Operation = "label"
-	RETURN   Operation = "return"
-	CALL     Operation = "call"
-	// Operadores unários
-	NEG Operation = "neg" // Para -
-	NOT Operation = "not" // Para !
-
-	// definir outras operações
+    I32   Type = "i32"
+    FLOAT Type = "float"
+    I1    Type = "i1"
+    VOID  Type = "void"
 )
 
 type Instruction struct {
-    Op     Operation
-    Dest   string   // Para atribuições
-    Arg1   string   // Primeiro operando
-    Arg2   string   // Segundo operando ou lista de args
-    Label  string   // Para controle de fluxo
+    Op      string
+    Type    Type
+    Dest    string
+    Args    []string
+    Label   string
+    Comment string
 }
+
+type BasicBlock struct {
+    Label        string
+    Instructions []Instruction
+    Terminator   *Instruction
+}
+
+type Function struct {
+    Name       string
+    ReturnType Type
+    Params     []Param
+    Blocks     []*BasicBlock
+}
+
+type Param struct {
+    Name string
+    Type Type
+}
+
 type IntermediateRep struct {
-	Instructions []Instruction
-	TempCount    int // contador para variavies temporarias
+    Functions   []*Function
+    GlobalVars  []Instruction
+    TempCounter int
+    BlockCounter int
 }
 
 func NewIR() *IntermediateRep {
-	return &IntermediateRep{
-		Instructions: make([]Instruction, 0),
-		TempCount:    0,
-	}
+    return &IntermediateRep{
+        Functions:  []*Function{{
+            Name:       "main",
+            ReturnType: I32,
+            Blocks:     []*BasicBlock{{Label: "entry"}},
+        }},
+        TempCounter: 0,
+        BlockCounter: 0,
+    }
 }
 
 func (ir *IntermediateRep) NewTemp() string {
-	temp := fmt.Sprintf("t%d", ir.TempCount)
-	ir.TempCount++
-	return temp
+    temp := fmt.Sprintf("%%t%d", ir.TempCounter)
+    ir.TempCounter++
+    return temp
+}
+
+func (ir *IntermediateRep) NewLabel(prefix string) string {
+    label := fmt.Sprintf("%s.%d", prefix, ir.BlockCounter)
+    ir.BlockCounter++
+    return label
+}
+
+func (ir *IntermediateRep) CurrentFunction() *Function {
+    return ir.Functions[len(ir.Functions)-1]
+}
+
+func (ir *IntermediateRep) CurrentBlock() *BasicBlock {
+    fn := ir.CurrentFunction()
+    return fn.Blocks[len(fn.Blocks)-1]
 }
