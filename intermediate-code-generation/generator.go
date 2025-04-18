@@ -31,8 +31,21 @@ func NewCodeGenerator() *CodeGenerator {
 }
 
 func (cg *CodeGenerator) GenerateFromAST(statements []parser.Statement) *IntermediateRep {
+	// Primeiro passada: declara todas as variáveis
 	for _, stmt := range statements {
-		cg.generateStatement(stmt)
+		if decl, ok := stmt.(*parser.VariableDeclaration); ok {
+			cg.generateVariableDecl(decl, true)
+		}
+	}
+
+	// Segunda passada: gera o código
+	for _, stmt := range statements {
+		switch stmt.(type) {
+		case *parser.VariableDeclaration:
+			continue // Já tratado
+		default:
+			cg.generateStatement(stmt)
+		}
 	}
 
 	if cg.currentBlock.Terminator == nil {
@@ -49,7 +62,7 @@ func (cg *CodeGenerator) GenerateFromAST(statements []parser.Statement) *Interme
 func (cg *CodeGenerator) generateStatement(stmt parser.Statement) {
 	switch s := stmt.(type) {
 	case *parser.VariableDeclaration:
-		cg.generateVariableDecl(s)
+		cg.generateVariableDecl(s, false)
 	case *parser.AssignmentStatement:
 		cg.generateAssignment(s)
 	case *parser.IfStatement:
@@ -67,7 +80,7 @@ func (cg *CodeGenerator) generateStatement(stmt parser.Statement) {
 	}
 }
 
-func (cg *CodeGenerator) generateVariableDecl(decl *parser.VariableDeclaration) {
+func (cg *CodeGenerator) generateVariableDecl(decl *parser.VariableDeclaration, initializeOnly bool) {
 	llvmType := cg.llvmTypeFromParserType(decl.Type)
 	alloca := cg.newTemp()
 
@@ -87,7 +100,14 @@ func (cg *CodeGenerator) generateVariableDecl(decl *parser.VariableDeclaration) 
 		cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
 			Op:   "store",
 			Type: llvmType,
-			Args: []string{val, fmt.Sprintf("%s* %s", llvmType, alloca)},
+			Args: []string{val, string(llvmType) + "*", alloca},
+		})
+	} else if initializeOnly {
+		// Inicializa com valor padrão
+		cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+			Op:   "store",
+			Type: llvmType,
+			Args: []string{"0", string(llvmType) + "*", alloca},
 		})
 	}
 }
@@ -102,7 +122,7 @@ func (cg *CodeGenerator) generateAssignment(assign *parser.AssignmentStatement) 
 	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
 		Op:   "store",
 		Type: info.Type,
-		Args: []string{val, fmt.Sprintf("%s*", info.Type), info.Alloca},
+		Args: []string{val, string(info.Type) + "*", info.Alloca},
 	})
 }
 
@@ -126,21 +146,21 @@ func (cg *CodeGenerator) generateExpression(expr parser.Expression) string {
 }
 
 func (cg *CodeGenerator) generateIdentifier(ident *parser.Identifier) string {
-    info, exists := cg.symbolTable[ident.Name]
-    if !exists {
-        return "0"
-    }
+	info, exists := cg.symbolTable[ident.Name]
+	if !exists {
+		return "0"
+	}
 
-    temp := cg.newTemp()
-    // Formato CORRETO: load <result-type>, <pointer-type>* <pointer>
-    cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-        Op:   "load",
-        Type: info.Type,
-        Args: []string{string(info.Type), fmt.Sprintf("%s* %s", info.Type, info.Alloca)},
-        Dest: temp,
-    })
-    return temp
+	temp := cg.newTemp()
+	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+		Op:   "load",
+		Type: info.Type,
+		Args: []string{string(info.Type) + "*", info.Alloca},
+		Dest: temp,
+	})
+	return temp
 }
+
 func (cg *CodeGenerator) generateNumber(num *parser.Number) string {
 	if num.Value == float64(int(num.Value)) {
 		return strconv.Itoa(int(num.Value))
@@ -253,49 +273,42 @@ func (cg *CodeGenerator) generateBinaryExpr(expr *parser.BinaryExpression) strin
 }
 
 func (cg *CodeGenerator) generateComparison(expr *parser.BinaryExpression, left, right string, leftType, rightType Type) string {
-	temp := cg.newTemp()
-	var op string
+    temp := cg.newTemp()
+    var op string
+    var predicate string // Novo: armazenar o predicado separadamente
+    var cmpType Type = I1
 
-	if leftType == FLOAT || rightType == FLOAT {
-		switch expr.Operator {
-		case "<":
-			op = "fcmp olt"
-		case ">":
-			op = "fcmp ogt"
-		case "<=":
-			op = "fcmp ole"
-		case ">=":
-			op = "fcmp oge"
-		case "==":
-			op = "fcmp oeq"
-		case "!=":
-			op = "fcmp one"
-		}
-	} else {
-		switch expr.Operator {
-		case "<":
-			op = "icmp slt"
-		case ">":
-			op = "icmp sgt"
-		case "<=":
-			op = "icmp sle"
-		case ">=":
-			op = "icmp sge"
-		case "==":
-			op = "icmp eq"
-		case "!=":
-			op = "icmp ne"
-		}
-	}
+    if leftType == FLOAT || rightType == FLOAT {
+        op = "fcmp"
+        switch expr.Operator {
+        case "<": predicate = "olt"
+        case ">": predicate = "ogt"
+        case "<=": predicate = "ole"
+        case ">=": predicate = "oge"
+        case "==": predicate = "oeq"
+        case "!=": predicate = "one"
+        }
+    } else {
+        op = "icmp"
+        switch expr.Operator {
+        case "<": predicate = "slt"
+        case ">": predicate = "sgt"
+        case "<=": predicate = "sle"
+        case ">=": predicate = "sge"
+        case "==": predicate = "eq"
+        case "!=": predicate = "ne"
+        }
+    }
 
-	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-		Op:   op,
-		Type: I1,
-		Dest: temp,
-		Args: []string{left, right},
-	})
+    // Adiciona o predicado como primeiro argumento
+    cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+        Op:   op,
+        Type: cmpType,
+        Args: []string{predicate, string(leftType), left, right},
+        Dest: temp,
+    })
 
-	return temp
+    return temp
 }
 
 func (cg *CodeGenerator) generateTypeConversion(value string, fromType, toType Type) string {
@@ -348,7 +361,6 @@ func (cg *CodeGenerator) generateIfStatement(ifStmt *parser.IfStatement) {
 		Args: []string{cond, thenLabel, elseLabel},
 	}
 
-	// Then block
 	thenBlock := &BasicBlock{Label: thenLabel}
 	cg.ir.CurrentFunction().Blocks = append(cg.ir.CurrentFunction().Blocks, thenBlock)
 	cg.currentBlock = thenBlock
@@ -358,7 +370,6 @@ func (cg *CodeGenerator) generateIfStatement(ifStmt *parser.IfStatement) {
 		Args: []string{endLabel},
 	}
 
-	// Else block
 	elseBlock := &BasicBlock{Label: elseLabel}
 	cg.ir.CurrentFunction().Blocks = append(cg.ir.CurrentFunction().Blocks, elseBlock)
 	cg.currentBlock = elseBlock
@@ -370,7 +381,6 @@ func (cg *CodeGenerator) generateIfStatement(ifStmt *parser.IfStatement) {
 		Args: []string{endLabel},
 	}
 
-	// End block
 	endBlock := &BasicBlock{Label: endLabel}
 	cg.ir.CurrentFunction().Blocks = append(cg.ir.CurrentFunction().Blocks, endBlock)
 	cg.currentBlock = endBlock
@@ -381,13 +391,11 @@ func (cg *CodeGenerator) generateWhileStatement(whileStmt *parser.WhileStatement
 	bodyLabel := cg.newLabel("while.body")
 	endLabel := cg.newLabel("while.end")
 
-	// Jump to condition
 	cg.currentBlock.Terminator = &Instruction{
 		Op:   "br",
 		Args: []string{condLabel},
 	}
 
-	// Condition block
 	condBlock := &BasicBlock{Label: condLabel}
 	cg.ir.CurrentFunction().Blocks = append(cg.ir.CurrentFunction().Blocks, condBlock)
 	cg.currentBlock = condBlock
@@ -397,7 +405,6 @@ func (cg *CodeGenerator) generateWhileStatement(whileStmt *parser.WhileStatement
 		Args: []string{cond, bodyLabel, endLabel},
 	}
 
-	// Body block
 	bodyBlock := &BasicBlock{Label: bodyLabel}
 	cg.ir.CurrentFunction().Blocks = append(cg.ir.CurrentFunction().Blocks, bodyBlock)
 	cg.currentBlock = bodyBlock
@@ -407,31 +414,26 @@ func (cg *CodeGenerator) generateWhileStatement(whileStmt *parser.WhileStatement
 		Args: []string{condLabel},
 	}
 
-	// End block
 	endBlock := &BasicBlock{Label: endLabel}
 	cg.ir.CurrentFunction().Blocks = append(cg.ir.CurrentFunction().Blocks, endBlock)
 	cg.currentBlock = endBlock
 }
 
 func (cg *CodeGenerator) generateForStatement(forStmt *parser.ForStatement) {
-	// Removida a declaração não utilizada: initLabel
 	condLabel := cg.newLabel("for.cond")
 	bodyLabel := cg.newLabel("for.body")
 	stepLabel := cg.newLabel("for.step")
 	endLabel := cg.newLabel("for.end")
 
-	// Initialization (executada no bloco atual)
 	if forStmt.Init != nil {
 		cg.generateStatement(forStmt.Init)
 	}
 
-	// Jump to condition
 	cg.currentBlock.Terminator = &Instruction{
 		Op:   "br",
 		Args: []string{condLabel},
 	}
 
-	// Condition block
 	condBlock := &BasicBlock{Label: condLabel}
 	cg.ir.CurrentFunction().Blocks = append(cg.ir.CurrentFunction().Blocks, condBlock)
 	cg.currentBlock = condBlock
@@ -449,7 +451,6 @@ func (cg *CodeGenerator) generateForStatement(forStmt *parser.ForStatement) {
 		}
 	}
 
-	// Body block
 	bodyBlock := &BasicBlock{Label: bodyLabel}
 	cg.ir.CurrentFunction().Blocks = append(cg.ir.CurrentFunction().Blocks, bodyBlock)
 	cg.currentBlock = bodyBlock
@@ -459,7 +460,6 @@ func (cg *CodeGenerator) generateForStatement(forStmt *parser.ForStatement) {
 		Args: []string{stepLabel},
 	}
 
-	// Step block
 	stepBlock := &BasicBlock{Label: stepLabel}
 	cg.ir.CurrentFunction().Blocks = append(cg.ir.CurrentFunction().Blocks, stepBlock)
 	cg.currentBlock = stepBlock
@@ -471,11 +471,11 @@ func (cg *CodeGenerator) generateForStatement(forStmt *parser.ForStatement) {
 		Args: []string{condLabel},
 	}
 
-	// End block
 	endBlock := &BasicBlock{Label: endLabel}
 	cg.ir.CurrentFunction().Blocks = append(cg.ir.CurrentFunction().Blocks, endBlock)
 	cg.currentBlock = endBlock
 }
+
 func (cg *CodeGenerator) generateReturnStatement(ret *parser.ReturnStatement) {
 	if ret.Value != nil {
 		val := cg.generateExpression(ret.Value)

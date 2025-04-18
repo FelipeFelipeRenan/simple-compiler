@@ -3,12 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
-	icg "simple-compiler/intermediate-code-generation" // Descomente esta linha
+	icg "simple-compiler/intermediate-code-generation"
 	"simple-compiler/lexer"
 	"simple-compiler/parser"
 	"simple-compiler/token"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -61,34 +60,17 @@ func main() {
 	}
 
 	// 6. Geração de código intermediário
-// Modifique a parte da geração de código no main():
-if len(p.Errors) == 0 {
-    generator := icg.NewCodeGenerator()
-    intermediate := generator.GenerateFromAST(statements)
-    printLLVMIR(intermediate)
-}
+	if len(p.Errors) == 0 {
+		generator := icg.NewCodeGenerator()
+		intermediate := generator.GenerateFromAST(statements)
+		fmt.Println("\n; Generated LLVM IR")
+		fmt.Println(intermediate.GenerateLLVM())
+	}
 
 	elapsed := time.Since(startingTime)
 	fmt.Printf("\nTempo de compilação: %v\n", elapsed)
 }
 
-// ... (mantenha as funções filterErrors e sortErrorsByPosition como estão)
-// Função para filtrar erros duplicados
-func filterErrors(errors []parser.ParseError) []parser.ParseError {
-	var filtered []parser.ParseError
-	seen := make(map[string]bool)
-
-	for _, err := range errors {
-		key := fmt.Sprintf("%d:%d:%s", err.Line, err.Column, err.Message)
-		if !seen[key] && err.Line > 0 { // Ignora erros sem linha definida
-			seen[key] = true
-			filtered = append(filtered, err)
-		}
-	}
-	return filtered
-}
-
-// Função para ordenar erros por posição no código
 func sortErrorsByPosition(errors []parser.ParseError) {
 	sort.Slice(errors, func(i, j int) bool {
 		if errors[i].Line == errors[j].Line {
@@ -97,59 +79,3 @@ func sortErrorsByPosition(errors []parser.ParseError) {
 		return errors[i].Line < errors[j].Line
 	})
 }
-
-// Adicione esta função para imprimir a IR
-func printLLVMIR(ir *icg.IntermediateRep) {
-    fmt.Println("\n; Generated LLVM IR")
-    
-    for _, fn := range ir.Functions {
-        // Print function header
-        params := make([]string, len(fn.Params))
-        for i, p := range fn.Params {
-            params[i] = fmt.Sprintf("%s %s", p.Type, p.Name)
-        }
-        
-        fmt.Printf("\ndefine %s @%s(%s) {\n", 
-            fn.ReturnType, fn.Name, strings.Join(params, ", "))
-        
-        // Print basic blocks
-        for _, block := range fn.Blocks {
-            if block.Label != "" {
-                fmt.Printf("%s:\n", block.Label)
-            }
-            
-            // Print instructions
-            for _, inst := range block.Instructions {
-                if inst.Dest != "" {
-                    fmt.Printf("  %s = ", inst.Dest)
-                } else {
-                    fmt.Printf("  ")
-                }
-                
-                fmt.Printf("%s %s", inst.Op, inst.Type)
-                
-                if len(inst.Args) > 0 {
-                    fmt.Printf(" %s", strings.Join(inst.Args, ", "))
-                }
-                
-                if inst.Comment != "" {
-                    fmt.Printf(" ; %s", inst.Comment)
-                }
-                
-                fmt.Println()
-            }
-            
-            // Print terminator
-            if block.Terminator != nil {
-                fmt.Printf("  %s %s", block.Terminator.Op, block.Terminator.Type)
-                if len(block.Terminator.Args) > 0 {
-                    fmt.Printf(" %s", strings.Join(block.Terminator.Args, ", "))
-                }
-                fmt.Println()
-            }
-        }
-        
-        fmt.Println("}")
-    }
-}
-
