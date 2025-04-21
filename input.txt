@@ -1,12 +1,7 @@
-func sum(int a, int b) int {
+func sum(int a, int b): int {
     return a + b
 }
 
-func main() {
+func main(): void {
     int x = 5
-    if x > 0 {
-        print("Positivo")
-    } else {
-        print("Não positivo")
-    }
 }

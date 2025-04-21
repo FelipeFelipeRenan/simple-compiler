@@ -26,7 +26,7 @@ func New(ast []parser.Statement) *Analyzer {
 }
 
 func (a *Analyzer) Analyze() []SemanticError {
-
+	// Funções built-in
 	a.symbolTable.Declare("print", parser.SymbolInfo{
 		Name:      "print",
 		Category:  parser.Function,
@@ -34,51 +34,52 @@ func (a *Analyzer) Analyze() []SemanticError {
 		DefinedAt: 0,
 	})
 
+    a.symbolTable.Declare("main", parser.SymbolInfo{
+        Name:      "main",
+        Category:  parser.Function,
+        Type:      "void",
+        DefinedAt: 0,
+    })
+    
+
+	// Análise das declarações
 	for _, stmt := range a.ast {
 		a.checkStatement(stmt)
 	}
 	return a.errors
 }
-
-func (a *Analyzer) addError(msg string, line int, token string) {
-	a.errors = append(a.errors, SemanticError{
-		Message: msg,
-		Line:    line,
-		Token:   token,
-	})
+func (a *Analyzer) addError(msg string, line int,  token string) {
+    a.errors = append(a.errors, SemanticError{
+        Message: msg,
+        Line:    line,
+        Token:   token,
+    })
 }
-
 func (a *Analyzer) checkVariableDecl(decl *parser.VariableDeclaration) {
-	// Verificação de tipo
-	switch decl.Type {
-	case "int", "float", "string", "bool":
-		// Tipos válidos
-	default:
-		a.addError(fmt.Sprintf("Tipo desconhecido: %s", decl.Type),
-			decl.GetToken().Line, decl.GetToken().Lexeme)
-	}
-	if a.symbolTable.ExistsInCurrentScope(decl.Name) {
-		a.addError(fmt.Sprintf("Variável '%s' já declarada neste escopo", decl.Name),
-			decl.Token.Line, decl.Token.Lexeme)
-	}
+    // Verifica declaração duplicada
+    if _, exists := a.symbolTable.Resolve(decl.Name); exists {
+        a.addError(
+            fmt.Sprintf("Variável '%s' já declarada", decl.Name),
+            decl.Token.Line,
+            decl.Token.Lexeme, // Adiciona o token como terceiro argumento
+        )
+    }
+    // Registra na tabela de símbolos
+    a.symbolTable.Declare(decl.Name, parser.SymbolInfo{
+        Name:      decl.Name,
+        Category:  parser.Variable,
+        Type:      decl.Type,
+        DefinedAt: decl.Token.Line,
+    })
 
-	// Registra a variável
-	a.symbolTable.Declare(decl.Name, parser.SymbolInfo{
-		Type:      decl.Type,
-		Category:  parser.Variable,
-		DefinedAt: decl.Token.Line,
-	})
-
-	// Verifica a expressão de inicialização
-	if decl.Value != nil {
-		exprType := a.checkExpression(decl.Value)
-		if exprType != "" && !a.isCompatible(decl.Type, exprType) {
-			a.addError(fmt.Sprintf("Tipo incompatível: não é possível atribuir %s a %s",
-				exprType, decl.Type), decl.Token.Line, decl.Token.Lexeme)
-		}
-	}
+    // Verifica valor de inicialização
+    if decl.Value != nil {
+        exprType := a.checkExpression(decl.Value)
+        if exprType != "" && !a.isCompatible(decl.Type, exprType) {
+            a.addError(fmt.Sprintf("Tipo incompatível para '%s'", decl.Name), decl.Token.Line, decl.Token.Lexeme)
+        }
+    }
 }
-
 func (a *Analyzer) checkAssignment(assign *parser.AssignmentStatement) {
 	sym, exists := a.symbolTable.Resolve(assign.Name)
 	if !exists {
@@ -153,6 +154,10 @@ func (a *Analyzer) checkIdentifier(ident *parser.Identifier) string {
 
 func (a *Analyzer) checkStatement(stmt parser.Statement) {
 	switch s := stmt.(type) {
+	case *parser.FunctionDeclaration:
+        // Adiciona função à tabela de símbolos
+		a.checkFunctionDecl(s)
+        // Processa corpo
 	case *parser.VariableDeclaration:
 		a.checkVariableDecl(s)
 	case *parser.AssignmentStatement:
@@ -276,4 +281,46 @@ func (a *Analyzer) checkForStatement(forStmt *parser.ForStatement) {
 	a.symbolTable.PopScope()
 }
 
+func (a *Analyzer) checkFunctionDecl(fd *parser.FunctionDeclaration) {
+    // Registra a função
+    a.symbolTable.Declare(fd.Name, parser.SymbolInfo{
+        Name:      fd.Name,
+        Category:  parser.Function,
+        Type:      fd.ReturnType,
+        DefinedAt: fd.Token.Line,
+    })
+
+    // Cria escopo para parâmetros
+    a.symbolTable.PushScope()
+    defer a.symbolTable.PopScope()
+
+    // Registra parâmetros
+    for _, param := range fd.Parameters {
+        a.symbolTable.Declare(param.Name, parser.SymbolInfo{
+            Name:      param.Name,
+            Category:  parser.Variable,
+            Type:      param.Type,
+            DefinedAt: param.Token.Line,
+        })
+    }
+
+    // Analisa corpo
+    a.checkBlock(fd.Body)
+}
+
+func (a *Analyzer) checkBlock(block *parser.BlockStatement) {
+    if block == nil {
+        fmt.Println("[SEMANTIC] Bloco nulo encontrado")
+        return
+    }
+    
+    a.symbolTable.PushScope()
+    defer a.symbolTable.PopScope()
+
+    fmt.Printf("[SEMANTIC] Analisando bloco com %d statements\n", len(block.Statements))
+    for i, stmt := range block.Statements {
+        fmt.Printf("[SEMANTIC] Processando statement %d\n", i+1)
+        a.checkStatement(stmt)
+    }
+}
 // Para Identifier

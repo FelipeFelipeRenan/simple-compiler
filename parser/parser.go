@@ -266,10 +266,10 @@ func (p *Parser) parsePrimary() Expression {
 		return expr
 
 	case token.IDENTIFIER:
-        if p.peekToken().Type == token.LPAREN {
-            return p.parseCallExpression()
-        }
-        return &Identifier{Name: p.current.Lexeme, Token: p.current}
+		if p.peekToken().Type == token.LPAREN {
+			return p.parseCallExpression()
+		}
+		return &Identifier{Name: p.current.Lexeme, Token: p.current}
 
 	case token.LPAREN:
 		p.nextToken()
@@ -316,8 +316,8 @@ func (p *Parser) ParseStatement() Statement {
 		return p.parseForStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()
-	case token.FUNC: // Adicione este caso
-		return p.parseFunctionDeclaration()
+    case token.FUNC:
+        return p.parseFunctionDeclaration()
 	default:
 		p.addError(fmt.Sprintf("Declaração inválida com token %s", p.current.Lexeme), p.current.Line, p.current.Column)
 		p.Skip()
@@ -328,36 +328,36 @@ func (p *Parser) ParseStatement() Statement {
 // ParseAssignment analisa expressões de atribuição (ex: x = 10)
 
 func (p *Parser) parseIfStatement() *IfStatement {
-    p.nextToken() // Pula 'if'
+	p.nextToken() // Pula 'if'
 
-    // Parse da condição (com ou sem parênteses)
-    var condition Expression
-    if p.current.Type == token.LPAREN {
-        p.nextToken()
-        condition = p.parseExpression()
-        if p.current.Type != token.RPAREN {
-            p.addError("Esperado ')' após condição", p.current.Line, p.current.Column)
-        }
-        p.nextToken()
-    } else {
-        condition = p.parseExpression()
-    }
+	// Parse da condição (com ou sem parênteses)
+	var condition Expression
+	if p.current.Type == token.LPAREN {
+		p.nextToken()
+		condition = p.parseExpression()
+		if p.current.Type != token.RPAREN {
+			p.addError("Esperado ')' após condição", p.current.Line, p.current.Column)
+		}
+		p.nextToken()
+	} else {
+		condition = p.parseExpression()
+	}
 
-    // Parse do bloco 'then'
-    thenBlock := p.parseBlock()
+	// Parse do bloco 'then'
+	thenBlock := p.parseBlock()
 
-    // Parse do bloco 'else' (opcional)
-    var elseBlock *BlockStatement
-    if p.current.Type == token.ELSE {
-        p.nextToken()
-        elseBlock = p.parseBlock()
-    }
+	// Parse do bloco 'else' (opcional)
+	var elseBlock *BlockStatement
+	if p.current.Type == token.ELSE {
+		p.nextToken()
+		elseBlock = p.parseBlock()
+	}
 
-    return &IfStatement{
-        Condition: condition,
-        Body:      thenBlock,
-        ElseBody:  elseBlock,
-    }
+	return &IfStatement{
+		Condition: condition,
+		Body:      thenBlock,
+		ElseBody:  elseBlock,
+	}
 }
 
 func (p *Parser) parseWhileStatement() Statement {
@@ -407,28 +407,29 @@ func (p *Parser) parseWhileStatement() Statement {
 	whileStmt.Body = &BlockStatement{Statements: body}
 	return whileStmt
 }
-
-// Em parseBlock():
 func (p *Parser) parseBlock() *BlockStatement {
+    block := &BlockStatement{}
+    
     if p.current.Type != token.LBRACE {
-        p.addError("Esperado '{'", p.current.Line, p.current.Column)
-        return nil
+        return block
     }
     p.nextToken() // Pula '{'
+
+    loopGuard := 0
+    maxStatements := 100
     
-    block := &BlockStatement{}
-    for p.current.Type != token.RBRACE && !p.AtEnd() {
+    for !p.AtEnd() && p.current.Type != token.RBRACE && loopGuard < maxStatements {
         stmt := p.ParseStatement()
         if stmt != nil {
             block.Statements = append(block.Statements, stmt)
         }
+        loopGuard++
     }
-    
+
     if p.current.Type == token.RBRACE {
         p.nextToken() // Pula '}'
-    } else {
-        p.addError("Esperado '}'", p.current.Line, p.current.Column)
     }
+    
     return block
 }
 // parseForStatement analisa o `for`
@@ -580,157 +581,140 @@ func (p *Parser) addError(msg string, line int, column int) {
 	})
 }
 
-
 func (p *Parser) skipUntil(stopTypes ...token.TokenType) {
-    for !p.AtEnd() && !contains(stopTypes, p.current.Type) {
-        p.nextToken()
-    }
+	for !p.AtEnd() && !contains(stopTypes, p.current.Type) {
+		p.nextToken()
+	}
 }
 
 func contains(types []token.TokenType, target token.TokenType) bool {
-    for _, t := range types {
-        if t == target {
-            return true
-        }
-    }
-    return false
+	for _, t := range types {
+		if t == target {
+			return true
+		}
+	}
+	return false
 }
+
 // Nova função para parsear declaração de função
 func (p *Parser) parseFunctionDeclaration() Statement {
-    fmt.Println("Parse function 1 - Início")
-    funcToken := p.current
     p.nextToken() // Pula 'func'
 
-    // Verificação do nome
+    // Verificação obrigatória do nome
     if p.current.Type != token.IDENTIFIER {
-        p.addError("Esperado nome da função após 'func'", funcToken.Line, funcToken.Column)
-        p.skipUntil(token.LBRACE)
+        p.addError("Nome da função esperado", p.current.Line, p.current.Column)
         return nil
     }
-
     name := p.current.Lexeme
-    fmt.Println("Parse function 2 - Nome:", name)
     p.nextToken()
 
-    // Parâmetros
+    // Parâmetros com verificação de progresso
     var params []*VariableDeclaration
     if p.current.Type == token.LPAREN {
         p.nextToken() // Pula '('
-        fmt.Println("Parse function 3 - Início parâmetros")
-
-        lastPos := -1 // Controle anti-loop
-        for {
-            // Controle de progresso
-            currentPos := p.pos
-            if currentPos == lastPos {
-                p.addError("Estouro na análise de parâmetros", p.current.Line, p.current.Column)
-                p.skipUntil(token.RPAREN)
-                break
-            }
-            lastPos = currentPos
-
-            // Condição de saída
-            if p.current.Type == token.RPAREN || p.AtEnd() {
+        
+        paramCounter := 0
+        for !p.AtEnd() && p.current.Type != token.RPAREN {
+            // Controle anti-loop
+            if paramCounter > 10 {
+                p.addError("Número máximo de parâmetros excedido", p.current.Line, p.current.Column)
                 break
             }
 
-            fmt.Printf("  Token atual: %s (%s)\n", p.current.Lexeme, p.current.Type)
-
-            // Processa tipo
+            // Tipo do parâmetro
             if p.current.Type != token.TYPE {
-                p.addError(fmt.Sprintf("Esperado tipo do parâmetro, encontrado '%s'", p.current.Lexeme),
-                          p.current.Line, p.current.Column)
-                p.skipUntil(token.COMMA, token.RPAREN)
+                p.addError("Tipo do parâmetro esperado", p.current.Line, p.current.Column)
+                p.nextToken()
                 continue
             }
             paramType := p.current.Lexeme
             p.nextToken()
 
-            // Processa nome
+            // Nome do parâmetro
             if p.current.Type != token.IDENTIFIER {
-                p.addError(fmt.Sprintf("Esperado nome do parâmetro, encontrado '%s'", p.current.Lexeme),
-                          p.current.Line, p.current.Column)
-                p.skipUntil(token.COMMA, token.RPAREN)
+                p.addError("Nome do parâmetro esperado", p.current.Line, p.current.Column)
+                p.nextToken()
                 continue
             }
             paramName := p.current.Lexeme
             p.nextToken()
 
-            // Adiciona parâmetro
             params = append(params, &VariableDeclaration{
-                Type:  paramType,
-                Name:  paramName,
-                Token: p.current,
+                Type: paramType,
+                Name: paramName,
             })
+            paramCounter++
 
             // Verifica separador
             if p.current.Type == token.COMMA {
-                p.nextToken() // Pula ','
+                p.nextToken()
             } else if p.current.Type != token.RPAREN {
-                p.addError(fmt.Sprintf("Esperado ',' ou ')', encontrado '%s'", p.current.Lexeme),
-                          p.current.Line, p.current.Column)
-                p.skipUntil(token.RPAREN)
+                p.addError("Esperado ',' ou ')'", p.current.Line, p.current.Column)
             }
         }
-
-        // Finalização
+        
         if p.current.Type == token.RPAREN {
-            p.nextToken()
-            fmt.Println("Parse function 4 - Fim parâmetros")
-        } else {
-            p.addError("Esperado ')' após parâmetros", p.current.Line, p.current.Column)
+            p.nextToken() // Pula ')'
         }
     }
 
-    // Tipo de retorno
+    // Tipo de retorno obrigatório
     returnType := "void"
-    if p.current.Type == token.TYPE {
-        returnType = p.current.Lexeme
+    if p.current.Type == token.COLON {
         p.nextToken()
+        if p.current.Type == token.TYPE {
+            returnType = p.current.Lexeme
+            p.nextToken()
+        } else {
+            p.addError("Tipo de retorno esperado", p.current.Line, p.current.Column)
+        }
+    } else {
+        p.addError("Esperado ':' para tipo de retorno", p.current.Line, p.current.Column)
     }
 
-    // Corpo da função
+    // Corpo da função com verificação estrita
     if p.current.Type != token.LBRACE {
-        p.addError("Esperado '{' após declaração da função", p.current.Line, p.current.Column)
-        p.skipUntil(token.LBRACE)
+        p.addError("Esperado '{'", p.current.Line, p.current.Column)
     }
     body := p.parseBlock()
-
-    fmt.Println("Parse function 5 - Função completa processada")
+    
     return &FunctionDeclaration{
         Name:       name,
         Parameters: params,
         ReturnType: returnType,
-        Body:       body.Statements,
-        Token:      funcToken,
+        Body:       body,
     }
 }
 func (p *Parser) parseCallExpression() Expression {
-    ident := &Identifier{Name: p.current.Lexeme, Token: p.current}
+    ident := &Identifier{Name: p.current.Lexeme}
     p.nextToken() // Pula o nome da função
-
-    call := &CallExpression{
-        FunctionName: ident.Name,
-        Token:        p.current, // Token '('
+    
+    if p.current.Type != token.LPAREN {
+        p.addError("'(' esperado após nome da função", p.current.Line, p.current.Column)
+        return nil
     }
     p.nextToken() // Pula '('
 
-    // Parse dos argumentos
+    args := []Expression{}
     for p.current.Type != token.RPAREN && !p.AtEnd() {
-        fmt.Println("for do parse call expression")
         arg := p.parseExpression()
-        call.Arguments = append(call.Arguments, arg)
-
+        if arg != nil {
+            args = append(args, arg)
+        }
+        
         if p.current.Type == token.COMMA {
-            p.nextToken() // Pula ','
+            p.nextToken()
         }
     }
-
+    
     if p.current.Type != token.RPAREN {
-        p.addError("Esperado ')' após argumentos", p.current.Line, p.current.Column)
+        p.addError("')' esperado após argumentos", p.current.Line, p.current.Column)
     } else {
-        p.nextToken() // Pula ')'
+        p.nextToken()
     }
-
-    return call
+    
+    return &CallExpression{
+        FunctionName: ident.Name,
+        Arguments:    args,
+    }
 }

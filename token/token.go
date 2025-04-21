@@ -47,6 +47,7 @@ const (
 	BOOLEAN        TokenType = "BOOLEAN"    // true/false
 	STRING         TokenType = "STRING"     // "texto"
 	STRING_LITERAL TokenType = "STRING_LITERAL"
-	FUNC           TokenType = "FUNC"
-	COMMA          TokenType = ","
+	FUNC           TokenType = "FUNC"  // func declaration
+	COMMA          TokenType = "COMMA" //  ,
+	COLON          TokenType = "COLON" // :
 )

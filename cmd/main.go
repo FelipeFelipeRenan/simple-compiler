@@ -41,21 +41,24 @@ func main() {
 	p := parser.New(tokens)
 	statements := p.Parse()
 
-	// 4. Processamento de erros
 	if len(p.Errors) > 0 {
 		fmt.Println("\nErros encontrados:")
 		sortErrorsByPosition(p.Errors)
 		for _, err := range p.Errors {
 			fmt.Printf("🔴 Linha %d:%d - %s\n", err.Line, err.Column, err.Message)
 		}
-		os.Exit(1)
+		os.Exit(1) // Saída imediata após erros
 	}
 
 	// 5. Exibir AST
 	if len(statements) > 0 {
 		fmt.Println("\nAST gerada com sucesso:")
 		for _, stmt := range statements {
-			fmt.Println(stmt.String())
+			if fn, ok := stmt.(*parser.FunctionDeclaration); ok {
+				fmt.Println(fn.String())
+			} else {
+				fmt.Println(stmt.String())
+			}
 		}
 	}
 
