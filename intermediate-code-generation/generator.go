@@ -273,42 +273,54 @@ func (cg *CodeGenerator) generateBinaryExpr(expr *parser.BinaryExpression) strin
 }
 
 func (cg *CodeGenerator) generateComparison(expr *parser.BinaryExpression, left, right string, leftType, rightType Type) string {
-    temp := cg.newTemp()
-    var op string
-    var predicate string // Novo: armazenar o predicado separadamente
-    var cmpType Type = I1
+	temp := cg.newTemp()
+	var op string
+	var predicate string // Novo: armazenar o predicado separadamente
+	var cmpType Type = I1
 
-    if leftType == FLOAT || rightType == FLOAT {
-        op = "fcmp"
-        switch expr.Operator {
-        case "<": predicate = "olt"
-        case ">": predicate = "ogt"
-        case "<=": predicate = "ole"
-        case ">=": predicate = "oge"
-        case "==": predicate = "oeq"
-        case "!=": predicate = "one"
-        }
-    } else {
-        op = "icmp"
-        switch expr.Operator {
-        case "<": predicate = "slt"
-        case ">": predicate = "sgt"
-        case "<=": predicate = "sle"
-        case ">=": predicate = "sge"
-        case "==": predicate = "eq"
-        case "!=": predicate = "ne"
-        }
-    }
+	if leftType == FLOAT || rightType == FLOAT {
+		op = "fcmp"
+		switch expr.Operator {
+		case "<":
+			predicate = "olt"
+		case ">":
+			predicate = "ogt"
+		case "<=":
+			predicate = "ole"
+		case ">=":
+			predicate = "oge"
+		case "==":
+			predicate = "oeq"
+		case "!=":
+			predicate = "one"
+		}
+	} else {
+		op = "icmp"
+		switch expr.Operator {
+		case "<":
+			predicate = "slt"
+		case ">":
+			predicate = "sgt"
+		case "<=":
+			predicate = "sle"
+		case ">=":
+			predicate = "sge"
+		case "==":
+			predicate = "eq"
+		case "!=":
+			predicate = "ne"
+		}
+	}
 
-    // Adiciona o predicado como primeiro argumento
-    cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-        Op:   op,
-        Type: cmpType,
-        Args: []string{predicate, string(leftType), left, right},
-        Dest: temp,
-    })
+	// Adiciona o predicado como primeiro argumento
+	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+		Op:   op,
+		Type: cmpType,
+		Args: []string{predicate, string(leftType), left, right},
+		Dest: temp,
+	})
 
-    return temp
+	return temp
 }
 
 func (cg *CodeGenerator) generateTypeConversion(value string, fromType, toType Type) string {
@@ -474,6 +486,25 @@ func (cg *CodeGenerator) generateForStatement(forStmt *parser.ForStatement) {
 	endBlock := &BasicBlock{Label: endLabel}
 	cg.ir.CurrentFunction().Blocks = append(cg.ir.CurrentFunction().Blocks, endBlock)
 	cg.currentBlock = endBlock
+}
+
+func (cg *CodeGenerator) generateFunctionDecl(decl *parser.FunctionDeclaration) {
+	// Cria nova função no IR
+	fn := &Function{
+		Name:       decl.Name,
+		ReturnType: cg.llvmTypeFromParserType(decl.ReturnType),
+	}
+
+	// Adiciona parâmetros
+	for _, param := range decl.Parameters {
+		fn.Params = append(fn.Params, Param{
+			Name: param.Name,
+			Type: cg.llvmTypeFromParserType(param.Type),
+		})
+	}
+
+	cg.ir.Functions = append(cg.ir.Functions, fn)
+	cg.currentBlock = fn.Blocks[0] // Bloco entry
 }
 
 func (cg *CodeGenerator) generateReturnStatement(ret *parser.ReturnStatement) {

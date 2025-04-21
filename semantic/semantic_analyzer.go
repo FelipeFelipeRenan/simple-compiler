@@ -26,6 +26,14 @@ func New(ast []parser.Statement) *Analyzer {
 }
 
 func (a *Analyzer) Analyze() []SemanticError {
+
+	a.symbolTable.Declare("print", parser.SymbolInfo{
+		Name:      "print",
+		Category:  parser.Function,
+		Type:      "void",
+		DefinedAt: 0,
+	})
+
 	for _, stmt := range a.ast {
 		a.checkStatement(stmt)
 	}

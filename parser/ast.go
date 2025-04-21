@@ -205,6 +205,11 @@ type FunctionDeclaration struct {
 	Parameters []*VariableDeclaration
 	ReturnType string
 	Body       []Statement
+	Token      token.Token // Adicione este campo
+}
+
+func (fd *FunctionDeclaration) GetToken() token.Token {
+    return fd.Token
 }
 
 func (fd *FunctionDeclaration) stmtNode() {}
@@ -403,3 +408,5 @@ func (c *CallExpression) String() string {
     }
     return fmt.Sprintf("%s(%s)", c.FunctionName, strings.Join(args, ", "))
 }
+
+// Em parser/ast.go
