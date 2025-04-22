@@ -1,7 +1,4 @@
-func sum(int a, int b): int {
-    return a + b
-}
+int x = 1
+int y = 1 
 
-func main(): void {
-    int x = 5
-}
+int z = x + y

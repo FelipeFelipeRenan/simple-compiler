@@ -48,11 +48,11 @@ func (n *Number) String() string {
 }
 
 // IfStatement representa uma estrutura condicional
+// IfStatement representa uma estrutura condicional
 type IfStatement struct {
 	Condition Expression
 	Body      *BlockStatement
 	ElseBody  *BlockStatement // Opcional
-	Token     token.Token
 }
 
 func (i *IfStatement) stmtNode() {}
@@ -204,12 +204,7 @@ type FunctionDeclaration struct {
 	Name       string
 	Parameters []*VariableDeclaration
 	ReturnType string
-	Body       *BlockStatement
-	Token      token.Token // Adicione este campo
-}
-
-func (fd *FunctionDeclaration) GetToken() token.Token {
-	return fd.Token
+	Body       []Statement
 }
 
 func (fd *FunctionDeclaration) stmtNode() {}
@@ -220,7 +215,7 @@ func (fd *FunctionDeclaration) String() string {
 	}
 
 	body := ""
-	for _, stmt := range fd.Body.Statements {
+	for _, stmt := range fd.Body {
 		body += "\n    " + stmt.String()
 	}
 
@@ -282,17 +277,17 @@ func (b *BinaryExpression) GetToken() token.Token {
 }
 
 type UnaryExpression struct {
-	Operator string
-	Right    Expression
-	Token    token.Token
+    Operator string
+    Right    Expression
+    Token    token.Token
 }
 
 func (u *UnaryExpression) exprNode() {}
 func (u *UnaryExpression) String() string {
-	return fmt.Sprintf("(%s%s)", u.Operator, u.Right.String())
+    return fmt.Sprintf("(%s%s)", u.Operator, u.Right.String())
 }
 func (u *UnaryExpression) GetToken() token.Token {
-	return u.Token
+    return u.Token
 }
 
 // Number
@@ -394,19 +389,17 @@ func tokenTypeFromOperator(op string) token.TokenType {
 // Implemente para outros tipos conforme necessário
 
 type CallExpression struct {
-	FunctionName string
-	Arguments    []Expression
-	Token        token.Token
+    FunctionName string
+    Arguments    []Expression
+    Token        token.Token
 }
 
-func (c *CallExpression) exprNode()             {}
+func (c *CallExpression) exprNode() {}
 func (c *CallExpression) GetToken() token.Token { return c.Token }
 func (c *CallExpression) String() string {
-	args := make([]string, len(c.Arguments))
-	for i, arg := range c.Arguments {
-		args[i] = arg.String()
-	}
-	return fmt.Sprintf("%s(%s)", c.FunctionName, strings.Join(args, ", "))
+    args := make([]string, len(c.Arguments))
+    for i, arg := range c.Arguments {
+        args[i] = arg.String()
+    }
+    return fmt.Sprintf("%s(%s)", c.FunctionName, strings.Join(args, ", "))
 }
-
-// Em parser/ast.go

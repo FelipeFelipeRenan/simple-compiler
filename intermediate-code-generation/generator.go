@@ -61,8 +61,6 @@ func (cg *CodeGenerator) GenerateFromAST(statements []parser.Statement) *Interme
 
 func (cg *CodeGenerator) generateStatement(stmt parser.Statement) {
 	switch s := stmt.(type) {
-	case *parser.FunctionDeclaration:
-		cg.generateFunctionDecl(s)
 	case *parser.VariableDeclaration:
 		cg.generateVariableDecl(s, false)
 	case *parser.AssignmentStatement:
@@ -142,7 +140,6 @@ func (cg *CodeGenerator) generateExpression(expr parser.Expression) string {
 		return cg.generateUnaryExpr(e)
 	case *parser.CallExpression:
 		return cg.generateCallExpr(e)
-
 	default:
 		return "0"
 	}
@@ -276,54 +273,42 @@ func (cg *CodeGenerator) generateBinaryExpr(expr *parser.BinaryExpression) strin
 }
 
 func (cg *CodeGenerator) generateComparison(expr *parser.BinaryExpression, left, right string, leftType, rightType Type) string {
-	temp := cg.newTemp()
-	var op string
-	var predicate string // Novo: armazenar o predicado separadamente
-	var cmpType Type = I1
+    temp := cg.newTemp()
+    var op string
+    var predicate string // Novo: armazenar o predicado separadamente
+    var cmpType Type = I1
 
-	if leftType == FLOAT || rightType == FLOAT {
-		op = "fcmp"
-		switch expr.Operator {
-		case "<":
-			predicate = "olt"
-		case ">":
-			predicate = "ogt"
-		case "<=":
-			predicate = "ole"
-		case ">=":
-			predicate = "oge"
-		case "==":
-			predicate = "oeq"
-		case "!=":
-			predicate = "one"
-		}
-	} else {
-		op = "icmp"
-		switch expr.Operator {
-		case "<":
-			predicate = "slt"
-		case ">":
-			predicate = "sgt"
-		case "<=":
-			predicate = "sle"
-		case ">=":
-			predicate = "sge"
-		case "==":
-			predicate = "eq"
-		case "!=":
-			predicate = "ne"
-		}
-	}
+    if leftType == FLOAT || rightType == FLOAT {
+        op = "fcmp"
+        switch expr.Operator {
+        case "<": predicate = "olt"
+        case ">": predicate = "ogt"
+        case "<=": predicate = "ole"
+        case ">=": predicate = "oge"
+        case "==": predicate = "oeq"
+        case "!=": predicate = "one"
+        }
+    } else {
+        op = "icmp"
+        switch expr.Operator {
+        case "<": predicate = "slt"
+        case ">": predicate = "sgt"
+        case "<=": predicate = "sle"
+        case ">=": predicate = "sge"
+        case "==": predicate = "eq"
+        case "!=": predicate = "ne"
+        }
+    }
 
-	// Adiciona o predicado como primeiro argumento
-	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-		Op:   op,
-		Type: cmpType,
-		Args: []string{predicate, string(leftType), left, right},
-		Dest: temp,
-	})
+    // Adiciona o predicado como primeiro argumento
+    cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+        Op:   op,
+        Type: cmpType,
+        Args: []string{predicate, string(leftType), left, right},
+        Dest: temp,
+    })
 
-	return temp
+    return temp
 }
 
 func (cg *CodeGenerator) generateTypeConversion(value string, fromType, toType Type) string {
@@ -490,60 +475,6 @@ func (cg *CodeGenerator) generateForStatement(forStmt *parser.ForStatement) {
 	cg.ir.CurrentFunction().Blocks = append(cg.ir.CurrentFunction().Blocks, endBlock)
 	cg.currentBlock = endBlock
 }
-func (cg *CodeGenerator) generateFunctionDecl(decl *parser.FunctionDeclaration) {
-    // Cria função no IR
-    fn := &Function{
-        Name:       decl.Name,
-        ReturnType: cg.llvmTypeFromParserType(decl.ReturnType),
-        Params:     make([]Param, len(decl.Parameters)),
-        Blocks:     []*BasicBlock{{Label: "entry"}},
-    }
-
-    // Configura parâmetros
-    for i, param := range decl.Parameters {
-        fn.Params[i] = Param{
-            Name: param.Name,
-            Type: cg.llvmTypeFromParserType(param.Type),
-        }
-    }
-
-    // Contexto de geração
-    previousBlock := cg.currentBlock
-    cg.currentBlock = fn.Blocks[0]
-
-    // Registra parâmetros
-    for _, param := range decl.Parameters {
-        alloca := cg.newTemp()
-        cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-            Op:   "alloca",
-            Type: cg.llvmTypeFromParserType(param.Type),
-            Dest: alloca,
-        })
-        cg.symbolTable[param.Name] = VariableInfo{
-            Alloca: alloca,
-            Type:   cg.llvmTypeFromParserType(param.Type),
-        }
-    }
-
-    // Gera código para o corpo
-    for _, stmt := range decl.Body.Statements {
-        cg.generateStatement(stmt)
-    }
-
-    // Adiciona retorno padrão
-    if cg.currentBlock.Terminator == nil {
-        cg.currentBlock.Terminator = &Instruction{
-            Op:   "ret",
-            Type: cg.llvmTypeFromParserType(decl.ReturnType),
-            Args: []string{"0"},
-        }
-    }
-
-    // Restaura contexto
-    cg.currentBlock = previousBlock
-    cg.ir.Functions = append(cg.ir.Functions, fn)
-}
-
 
 func (cg *CodeGenerator) generateReturnStatement(ret *parser.ReturnStatement) {
 	if ret.Value != nil {

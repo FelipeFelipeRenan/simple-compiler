@@ -64,7 +64,6 @@ var keywords = map[string]token.TokenType{
 	"bool":   token.TYPE,
 	"true":   token.BOOLEAN,
 	"false":  token.BOOLEAN,
-	"func":   token.FUNC,
 }
 
 func (l *Lexer) readIdentifier() string {
@@ -129,16 +128,16 @@ func (l *Lexer) NextToken() token.Token {
 	case 0:
 		tok.Type = token.EOF
 		tok.Lexeme = ""
-	case '"':
-		str := l.readString()
-		if str == "" {
-			tok.Type = token.ILLEGAL
-			tok.Lexeme = "string não finalizada"
-		} else {
-			tok.Type = token.STRING_LITERAL
-			tok.Lexeme = str
-		}
-		return tok
+    case '"':
+        str := l.readString()
+        if str == "" {
+            tok.Type = token.ILLEGAL
+            tok.Lexeme = "string não finalizada"
+        } else {
+            tok.Type = token.STRING_LITERAL
+            tok.Lexeme = str
+        }
+        return tok
 	case '=':
 		if l.peekChar() == '=' {
 			tok.Lexeme = "=="
@@ -202,33 +201,33 @@ func (l *Lexer) NextToken() token.Token {
 	case '}':
 		tok.Lexeme = "}"
 		tok.Type = token.RBRACE
-	default:
-		if unicode.IsLetter(rune(l.ch)) {
-			tok.Lexeme = l.readIdentifier()
-			if kw, ok := keywords[tok.Lexeme]; ok {
-				tok.Type = kw
-			} else {
-				tok.Type = token.IDENTIFIER
-			}
-			return tok
-		} else if unicode.IsDigit(rune(l.ch)) {
-			tok.Lexeme = l.readNumber()
-			tok.Type = token.NUMBER
-			return tok
-		} else if l.ch != 0 {
-			tok.Type = token.ILLEGAL
-			tok.Lexeme = string(l.ch)
-			l.readChar()
-		}
-	}
+    default:
+        if unicode.IsLetter(rune(l.ch)) {
+            tok.Lexeme = l.readIdentifier()
+            if kw, ok := keywords[tok.Lexeme]; ok {
+                tok.Type = kw
+            } else {
+                tok.Type = token.IDENTIFIER
+            }
+            return tok
+        } else if unicode.IsDigit(rune(l.ch)) {
+            tok.Lexeme = l.readNumber()
+            tok.Type = token.NUMBER
+            return tok
+        } else if l.ch != 0 {
+            tok.Type = token.ILLEGAL
+            tok.Lexeme = string(l.ch)
+            l.readChar()
+        }
+    }
 
-	if tok.Type == "" {
-		tok.Type = token.EOF
-	}
-
-	if tok.Type != token.ILLEGAL && tok.Type != token.EOF {
-		l.readChar()
-	}
-
-	return tok
+    if tok.Type == "" {
+        tok.Type = token.EOF
+    }
+    
+    if tok.Type != token.ILLEGAL && tok.Type != token.EOF {
+        l.readChar()
+    }
+    
+    return tok
 }
