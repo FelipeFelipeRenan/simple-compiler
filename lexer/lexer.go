@@ -64,6 +64,7 @@ var keywords = map[string]token.TokenType{
 	"bool":   token.TYPE,
 	"true":   token.BOOLEAN,
 	"false":  token.BOOLEAN,
+	"func":   token.FUNC,
 }
 
 func (l *Lexer) readIdentifier() string {

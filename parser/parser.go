@@ -313,6 +313,8 @@ func (p *Parser) ParseStatement() Statement {
 		return p.parseForStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()
+    case token.FUNC:
+        return p.parseFunctionDeclaration()
 	default:
 		p.addError(fmt.Sprintf("Declaração inválida com token %s", p.current.Lexeme), p.current.Line, p.current.Column)
 		p.Skip()
@@ -422,25 +424,30 @@ func (p *Parser) parseWhileStatement() Statement {
 }
 
 func (p *Parser) parseBlock() *BlockStatement {
-	block := &BlockStatement{}
-	p.nextToken() // Pula '{'
+    if p.current.Type != token.LBRACE {
+        p.addError("Esperado '{'", p.current.Line, p.current.Column)
+        return nil
+    }
+    p.nextToken() // Pula '{'
 
-	for p.current.Type != token.RBRACE && !p.AtEnd() {
-		stmt := p.ParseStatement()
-		if stmt != nil {
-			block.Statements = append(block.Statements, stmt)
-		}
-	}
+    block := &BlockStatement{}
+    for p.current.Type != token.RBRACE && !p.AtEnd() {
+        stmt := p.ParseStatement()
+        if stmt != nil {
+            block.Statements = append(block.Statements, stmt)
+        } else {
+            p.nextToken() // Recuperação de erro
+        }
+    }
 
-	if p.current.Type != token.RBRACE {
-		p.addError("Esperado '}' ao final do bloco", p.current.Line, p.current.Column)
-		return nil
-	}
-	p.nextToken()
+    if p.current.Type == token.RBRACE {
+        p.nextToken() // Pula '}'
+    } else {
+        p.addError("Esperado '}' para fechar bloco", p.current.Line, p.current.Column)
+    }
 
-	return block
+    return block
 }
-
 // parseForStatement analisa o `for`
 func (p *Parser) parseForStatement() Statement {
 	forStmt := &ForStatement{}
@@ -543,7 +550,117 @@ func isEndOfDeclaration(tok token.Token) bool {
 		tok.Type == token.EOF ||
 		tok.Type == token.TYPE
 }
+func (p *Parser) parseFunctionDeclaration() Statement {
+    if p.current.Type != token.FUNC {
+        p.addError("Esperado 'func'", p.current.Line, p.current.Column)
+        return nil
+    }
+    funcToken := p.current
+    p.nextToken() // Pula 'func'
 
+    // Verificação obrigatória do nome da função
+    if p.current.Type != token.IDENTIFIER {
+        p.addError("Esperado nome da função após 'func'", funcToken.Line, funcToken.Column)
+        return nil
+    }
+    funcName := p.current.Lexeme
+    
+    // Declara a função na tabela de símbolos GLOBAL
+    if err := p.symbolTable.Declare(funcName, SymbolInfo{
+        Name:      funcName,
+        Type:      "function",
+        Category:  Function,
+        DefinedAt: funcToken.Line,
+    }); err != nil {
+        p.addError(err.Error(), funcToken.Line, funcToken.Column)
+    }
+    p.nextToken() // Pula o nome da função
+
+    // Entra no escopo da função (para parâmetros e variáveis locais)
+    p.symbolTable.PushScope()
+    var params []*VariableDeclaration
+
+    // Processamento de parâmetros
+    if p.current.Type != token.LPAREN {
+        p.addError("Esperado '(' após nome da função", p.current.Line, p.current.Column)
+    } else {
+        p.nextToken() // Pula '('
+        
+        for p.current.Type != token.RPAREN && !p.AtEnd() {
+            // Tipo do parâmetro
+            if p.current.Type != token.TYPE {
+                p.addError("Esperado tipo do parâmetro", p.current.Line, p.current.Column)
+                break
+            }
+            paramType := p.current.Lexeme
+            p.nextToken()
+
+            // Nome do parâmetro
+            if p.current.Type != token.IDENTIFIER {
+                p.addError(fmt.Sprintf("Esperado nome do parâmetro após tipo '%s'", paramType), p.current.Line, p.current.Column)
+                break
+            }
+            paramName := p.current.Lexeme
+            
+            // Registra o parâmetro no escopo DA FUNÇÃO
+            p.symbolTable.Declare(paramName, SymbolInfo{
+                Name:      paramName,
+                Type:      paramType,
+                Category:  Variable,
+                DefinedAt: p.current.Line,
+            })
+            
+            // Adiciona à lista de parâmetros
+            params = append(params, &VariableDeclaration{
+                Type:  paramType,
+                Name:  paramName,
+                Token: p.current,
+            })
+            
+            p.nextToken()
+
+            // Verifica separador ou fechamento
+            if p.current.Type == token.COMMA {
+                p.nextToken()
+            } else if p.current.Type != token.RPAREN {
+                p.addError("Esperado ',' ou ')' após parâmetro", p.current.Line, p.current.Column)
+            }
+        }
+        
+        if p.current.Type == token.RPAREN {
+            p.nextToken() // Pula ')'
+        } else {
+            p.addError("Esperado ')' para fechar parâmetros", p.current.Line, p.current.Column)
+        }
+    }
+
+    // Tipo de retorno
+    returnType := "void"
+    if p.current.Type == token.TYPE {
+        returnType = p.current.Lexeme
+        p.nextToken()
+    } else {
+        p.addError("Esperado tipo de retorno", p.current.Line, p.current.Column)
+    }
+
+    // Corpo da função
+    var body *BlockStatement
+    if p.current.Type == token.LBRACE {
+        body = p.parseBlock()
+    } else {
+        p.addError("Esperado '{' para iniciar o corpo da função", p.current.Line, p.current.Column)
+    }
+
+    p.symbolTable.PopScope() // Sai do escopo da função
+
+    return &FunctionDeclaration{
+        Name:       funcName,
+        Parameters: params,
+        ReturnType: returnType,
+        Body:       body.Statements,
+        Token:      funcToken,
+    }
+}
 // parseReturnStatement processa declarações de retorno
 func (p *Parser) parseReturnStatement() *ReturnStatement {
 	stmt := &ReturnStatement{}
@@ -565,21 +682,23 @@ func (p *Parser) peekToken() token.Token {
 }
 
 // Parse analisa uma sequência de declarações e retorna a AST completa
+// parser/parser.go
 func (p *Parser) Parse() []Statement {
-	var statements []Statement
-
-	for !p.AtEnd() {
-		stmt := p.ParseStatement()
-		if stmt != nil {
-			statements = append(statements, stmt)
-		} else {
-			p.Skip() // Evita travamento ao encontrar erro
-		}
-	}
-
-	return statements
+    // Processa todas as funções primeiro
+    var funcs []Statement
+    for !p.AtEnd() && p.current.Type == token.FUNC {
+        funcs = append(funcs, p.parseFunctionDeclaration())
+    }
+    
+    // Processa outras declarações
+    for !p.AtEnd() {
+        stmt := p.ParseStatement()
+        if stmt != nil {
+            funcs = append(funcs, stmt)
+        }
+    }
+    return funcs
 }
-
 // Função auxiliar para registrar erros
 // Em parser/parser.go
 func (p *Parser) addError(msg string, line int, column int) {

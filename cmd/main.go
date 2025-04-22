@@ -79,3 +79,4 @@ func sortErrorsByPosition(errors []parser.ParseError) {
 		return errors[i].Line < errors[j].Line
 	})
 }
+

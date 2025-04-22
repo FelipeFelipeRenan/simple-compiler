@@ -200,14 +200,18 @@ func (rs *ReturnStatement) String() string {
 }
 
 // FunctionDeclaration representa uma função
+var _ Statement = (*FunctionDeclaration)(nil)
+
 type FunctionDeclaration struct {
-	Name       string
-	Parameters []*VariableDeclaration
-	ReturnType string
-	Body       []Statement
+    Name       string
+    Parameters []*VariableDeclaration
+    ReturnType string
+    Body       []Statement
+    Token      token.Token
 }
 
-func (fd *FunctionDeclaration) stmtNode() {}
+func (fd *FunctionDeclaration) GetToken() token.Token { return fd.Token }
+func (fd *FunctionDeclaration) stmtNode()            {}
 func (fd *FunctionDeclaration) String() string {
 	params := make([]string, len(fd.Parameters))
 	for i, p := range fd.Parameters {
@@ -403,3 +407,4 @@ func (c *CallExpression) String() string {
     }
     return fmt.Sprintf("%s(%s)", c.FunctionName, strings.Join(args, ", "))
 }
+

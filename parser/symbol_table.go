@@ -54,8 +54,14 @@ func (st *SymbolTable) PopScope() {
 func (st *SymbolTable) Declare(name string, info SymbolInfo) error {
     currentScope := st.scopes[len(st.scopes)-1]
     
+    // Permite sobrecarregar funções (se for função)
+    if info.Category == Function {
+        currentScope[name] = info
+        return nil
+    }
+    
     if _, exists := currentScope[name]; exists {
-        return fmt.Errorf("symbol '%s' already declared in this scope", name)
+        return fmt.Errorf("symbol '%s' already declared", name)
     }
     
     currentScope[name] = info

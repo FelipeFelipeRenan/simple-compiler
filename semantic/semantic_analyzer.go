@@ -159,6 +159,18 @@ func (a *Analyzer) checkStatement(stmt parser.Statement) {
 		a.checkBlockStatement(s)
 	case *parser.ExpressionStatement:
 		a.checkExpression(s.Expression)
+	case *parser.FunctionDeclaration:
+		a.symbolTable.PushScope()
+		// Verifica parâmetros
+		for _, param := range s.Parameters {
+			a.checkVariableDecl(param)
+		}
+		// Verifica corpo
+		for _, stmt := range s.Body {
+			a.checkStatement(stmt)
+		}
+		a.symbolTable.PopScope()
+		a.checkFunctionDecl(s)
 	default:
 		a.addError(fmt.Sprintf("Tipo de statement não suportado: %T", stmt),
 			stmt.GetToken().Line, stmt.GetToken().Lexeme)
@@ -268,4 +280,35 @@ func (a *Analyzer) checkForStatement(forStmt *parser.ForStatement) {
 	a.symbolTable.PopScope()
 }
 
-// Para Identifier
+// semantic/semantic_analyzer.go
+
+// semantic/semantic_analyzer.go
+func (a *Analyzer) checkFunctionDecl(fd *parser.FunctionDeclaration) {
+    // Registra função no escopo GLOBAL
+    a.symbolTable.Declare(fd.Name, parser.SymbolInfo{
+        Name:      fd.Name,
+        Type:      fd.ReturnType,
+        Category:  parser.Function,
+        DefinedAt: fd.Token.Line,
+    })
+
+    // Cria escopo LOCAL para parâmetros
+    a.symbolTable.PushScope()
+    
+    // Registra parâmetros
+    for _, param := range fd.Parameters {
+        a.symbolTable.Declare(param.Name, parser.SymbolInfo{
+            Name:      param.Name,
+            Type:      param.Type,
+            Category:  parser.Variable,
+            DefinedAt: param.Token.Line,
+        })
+    }
+    
+    // Verifica corpo
+    for _, stmt := range fd.Body {
+        a.checkStatement(stmt)
+    }
+    
+    a.symbolTable.PopScope()
+}
