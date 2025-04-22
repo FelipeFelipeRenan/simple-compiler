@@ -6,6 +6,7 @@ import (
 	icg "simple-compiler/intermediate-code-generation"
 	"simple-compiler/lexer"
 	"simple-compiler/parser"
+	"simple-compiler/semantic"
 	"simple-compiler/token"
 	"sort"
 	"time"
@@ -37,6 +38,12 @@ func main() {
 		}
 	}
 
+	// Adicione isso temporariamente no cmd/main.go após a análise léxica
+	fmt.Println("\nTokens gerados:")
+	for _, tok := range tokens {
+		fmt.Printf("Type: %-10s Lexeme: %-10s Line: %d Column: %d\n",
+			tok.Type, tok.Lexeme, tok.Line, tok.Column)
+	}
 	// 3. Análise Sintática
 	p := parser.New(tokens)
 	statements := p.Parse()
@@ -51,26 +58,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 5. Exibir AST
-	if len(statements) > 0 {
-		fmt.Println("\nAST gerada com sucesso:")
-		for _, stmt := range statements {
-			fmt.Println(stmt.String())
+	// 5. Análise Semântica
+	analyzer := semantic.New(statements)
+	semanticErrors := analyzer.Analyze()
+	if len(semanticErrors) > 0 {
+		fmt.Println("\nErros semânticos encontrados:")
+		for _, err := range semanticErrors {
+			fmt.Printf("🔴 Linha %d - %s\n", err.Line, err.Message)
 		}
+		os.Exit(1)
 	}
 
-	// 6. Geração de código intermediário
-	if len(p.Errors) == 0 {
-		generator := icg.NewCodeGenerator()
-		intermediate := generator.GenerateFromAST(statements)
-		fmt.Println("\n; Generated LLVM IR")
-		fmt.Println(intermediate.GenerateLLVM())
-	}
+	// 6. Geração de Código Intermediário
+	generator := icg.NewCodeGenerator()
+	intermediate := generator.GenerateFromAST(statements)
+
+	fmt.Println("\n; Generated LLVM IR")
+	fmt.Println(intermediate.GenerateLLVM())
 
 	elapsed := time.Since(startingTime)
 	fmt.Printf("\nTempo de compilação: %v\n", elapsed)
 }
-
 func sortErrorsByPosition(errors []parser.ParseError) {
 	sort.Slice(errors, func(i, j int) bool {
 		if errors[i].Line == errors[j].Line {
@@ -79,4 +87,3 @@ func sortErrorsByPosition(errors []parser.ParseError) {
 		return errors[i].Line < errors[j].Line
 	})
 }
-

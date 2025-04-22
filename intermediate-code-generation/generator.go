@@ -509,60 +509,64 @@ func (cg *CodeGenerator) generateBlock(block *parser.BlockStatement) {
 
 
 func (cg *CodeGenerator) generateFunctionDecl(decl *parser.FunctionDeclaration) {
-    // Cria nova função no IR
-    fn := &Function{
-        Name:       decl.Name,
-        ReturnType: cg.llvmTypeFromParserType(decl.ReturnType),
-    }
-
-    // Adiciona parâmetros
+    // Converte tipos para LLVM
+    returnType := cg.llvmTypeFromParserType(decl.ReturnType)
+    
+    // Prepara parâmetros
+    var params []Param
     for _, param := range decl.Parameters {
-        fn.Params = append(fn.Params, Param{
+        params = append(params, Param{
             Name: param.Name,
             Type: cg.llvmTypeFromParserType(param.Type),
         })
     }
 
+    // Cria função no IR
+    fn := &Function{
+        Name:       decl.Name,
+        ReturnType: returnType,
+        Params:     params,
+        Blocks:     []*BasicBlock{{Label: "entry"}},
+    }
     cg.ir.Functions = append(cg.ir.Functions, fn)
-    cg.currentBlock = fn.Blocks[0] // Bloco entry
+    cg.currentBlock = fn.Blocks[0]
 
-    // Registra parâmetros na tabela de símbolos
-    for i, param := range fn.Params {
+    // Gera alocações para parâmetros
+    for _, param := range decl.Parameters {
         alloca := cg.newTemp()
         cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
             Op:   "alloca",
-            Type: param.Type,
+            Type: cg.llvmTypeFromParserType(param.Type),
             Dest: alloca,
         })
-        
-        // Store do valor do parâmetro
-        cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-            Op:   "store",
-            Type: param.Type,
-            Args: []string{fmt.Sprintf("%%%d", i+1), string(param.Type) + "*", alloca},
-        })
-        
         cg.symbolTable[param.Name] = VariableInfo{
             Alloca: alloca,
-            Type:   param.Type,
+            Type:  cg.llvmTypeFromParserType(param.Type),
         }
     }
 
-    // Gera código para o corpo da função
-    for _, stmt := range decl.Body {
-        cg.generateStatement(stmt)
+	block := &parser.BlockStatement{
+        Statements: decl.Body,
     }
+    // Gera corpo da função
+    cg.generateBlock(block)
 
     // Adiciona retorno padrão se necessário
     if cg.currentBlock.Terminator == nil {
-        cg.currentBlock.Terminator = &Instruction{
-            Op:   "ret",
-            Type: fn.ReturnType,
-            Args: []string{string(fn.ReturnType) + " 0"},
+        if decl.ReturnType == "void" {
+            cg.currentBlock.Terminator = &Instruction{
+                Op:   "ret",
+                Type: "void",
+            }
+        } else {
+            cg.currentBlock.Terminator = &Instruction{
+                Op:   "ret",
+                Type: returnType,
+                Args: []string{"0"},
+            }
         }
     }
 }
-
 func (cg *CodeGenerator) determineType(expr parser.Expression) Type {
 	switch e := expr.(type) {
 	case *parser.Number:

@@ -283,32 +283,47 @@ func (a *Analyzer) checkForStatement(forStmt *parser.ForStatement) {
 // semantic/semantic_analyzer.go
 
 // semantic/semantic_analyzer.go
-func (a *Analyzer) checkFunctionDecl(fd *parser.FunctionDeclaration) {
-    // Registra função no escopo GLOBAL
-    a.symbolTable.Declare(fd.Name, parser.SymbolInfo{
-        Name:      fd.Name,
-        Type:      fd.ReturnType,
-        Category:  parser.Function,
-        DefinedAt: fd.Token.Line,
-    })
+func (a *Analyzer) checkFunctionDecl(decl *parser.FunctionDeclaration) {
+    // Verifica tipo de retorno
+    switch decl.ReturnType {
+    case "int", "float", "void", "bool":
+        // Tipos válidos
+    default:
+        a.addError(fmt.Sprintf("Invalid return type: %s", decl.ReturnType),
+            decl.Token.Line, decl.Token.Lexeme)
+    }
 
-    // Cria escopo LOCAL para parâmetros
+    // Verifica parâmetros
+    for _, param := range decl.Parameters {
+        switch param.Type {
+        case "int", "float", "bool":
+            // Tipos válidos
+        default:
+            a.addError(fmt.Sprintf("Invalid parameter type: %s", param.Type),
+                param.Token.Line, param.Token.Lexeme)
+        }
+    }
+
+    // Cria novo escopo para a função
     a.symbolTable.PushScope()
     
-    // Registra parâmetros
-    for _, param := range fd.Parameters {
-        a.symbolTable.Declare(param.Name, parser.SymbolInfo{
+    // Adiciona parâmetros ao escopo
+    for _, param := range decl.Parameters {
+        if err := a.symbolTable.Declare(param.Name, parser.SymbolInfo{
             Name:      param.Name,
-            Type:      param.Type,
             Category:  parser.Variable,
+            Type:      param.Type,
             DefinedAt: param.Token.Line,
-        })
+        }); err != nil {
+            a.addError(err.Error(), param.Token.Line, param.Token.Lexeme)
+        }
     }
-    
-    // Verifica corpo
-    for _, stmt := range fd.Body {
+
+    // Verifica corpo da função
+    for _, stmt := range decl.Body {
         a.checkStatement(stmt)
     }
-    
+
+    // Remove escopo da função
     a.symbolTable.PopScope()
 }

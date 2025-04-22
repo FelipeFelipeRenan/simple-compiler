@@ -80,39 +80,41 @@ func (ir *IntermediateRep) CurrentBlock() *BasicBlock {
 	fn := ir.CurrentFunction()
 	return fn.Blocks[len(fn.Blocks)-1]
 }
-
 func (ir *IntermediateRep) GenerateLLVM() string {
-	var code strings.Builder
-
-	for _, fn := range ir.Functions {
-		// Function header
-		code.WriteString(fmt.Sprintf("define %s @%s() {\n", fn.ReturnType, fn.Name))
-
-		// Basic blocks
-		for _, block := range fn.Blocks {
-			// Block label
-			if block.Label != "" {
-				code.WriteString(block.Label + ":\n")
-			}
-
-			// Instructions
-			for _, inst := range block.Instructions {
-				if inst.Op == "icmp" {
-					fmt.Printf("DEBUG ICMP INSTRUCTION: %+v\n", inst)
-				}
-				code.WriteString("  " + inst.Format() + "\n")
-			}
-
-			// Terminator
-			if block.Terminator != nil {
-				code.WriteString("  " + block.Terminator.Format() + "\n")
-			}
-		}
-
-		code.WriteString("}\n")
-	}
-
-	return code.String()
+    var code strings.Builder
+    
+    // Declarações de função
+    for _, fn := range ir.Functions {
+        // Assinatura da função
+        code.WriteString(fmt.Sprintf("define %s @%s(", fn.ReturnType, fn.Name))
+        
+        // Parâmetros
+        params := make([]string, len(fn.Params))
+        for i, param := range fn.Params {
+            params[i] = fmt.Sprintf("%s %%%s", param.Type, param.Name)
+        }
+        code.WriteString(strings.Join(params, ", "))
+        code.WriteString(") {\n")
+        
+        // Corpo da função
+        for _, block := range fn.Blocks {
+            if block.Label != "" {
+                code.WriteString(block.Label + ":\n")
+            }
+            
+            for _, inst := range block.Instructions {
+                code.WriteString("  " + inst.Format() + "\n")
+            }
+            
+            if block.Terminator != nil {
+                code.WriteString("  " + block.Terminator.Format() + "\n")
+            }
+        }
+        
+        code.WriteString("}\n\n")
+    }
+    
+    return code.String()
 }
 
 func (i Instruction) Format() string {
