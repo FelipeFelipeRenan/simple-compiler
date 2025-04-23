@@ -49,15 +49,12 @@ type IntermediateRep struct {
 }
 
 func NewIR() *IntermediateRep {
-	return &IntermediateRep{
-		Functions: []*Function{{
-			Name:       "main",
-			ReturnType: I32,
-			Blocks:     []*BasicBlock{{Label: "entry"}},
-		}},
-		TempCounter:  0,
-		BlockCounter: 0,
-	}
+    return &IntermediateRep{
+        Functions:    []*Function{},
+        GlobalVars:   []Instruction{},
+        TempCounter:  0,
+        BlockCounter: 0,
+    }
 }
 
 func (ir *IntermediateRep) NewTemp() string {
@@ -73,25 +70,24 @@ func (ir *IntermediateRep) NewLabel(prefix string) string {
 }
 
 func (ir *IntermediateRep) CurrentFunction() *Function {
-	return ir.Functions[len(ir.Functions)-1]
+    if len(ir.Functions) == 0 {
+        return nil
+    }
+    return ir.Functions[len(ir.Functions)-1]
 }
 
 func (ir *IntermediateRep) CurrentBlock() *BasicBlock {
-	fn := ir.CurrentFunction()
-	return fn.Blocks[len(fn.Blocks)-1]
+    fn := ir.CurrentFunction()
+    if fn == nil || len(fn.Blocks) == 0 {
+        return nil
+    }
+    return fn.Blocks[len(fn.Blocks)-1]
 }
 
 func (ir *IntermediateRep) GenerateLLVM() string {
 	var code strings.Builder
 
-	// Cabeçalho do módulo
-	code.WriteString("; ModuleID = 'simple-compiler'\n")
-	code.WriteString("source_filename = \"simple-compiler\"\n\n")
-
-	// Declaração de funções intrínsecas
-	code.WriteString("declare i32 @printf(i8*, ...)\n\n")
-
-	// Funções definidas pelo usuário
+	// Declarações de função
 	for _, fn := range ir.Functions {
 		// Assinatura da função
 		code.WriteString(fmt.Sprintf("define %s @%s(", fn.ReturnType, fn.Name))
@@ -106,30 +102,20 @@ func (ir *IntermediateRep) GenerateLLVM() string {
 
 		// Corpo da função
 		for _, block := range fn.Blocks {
-			if block.Label != "" && block.Label != "entry" {
+			if block.Label != "" {
 				code.WriteString(block.Label + ":\n")
 			}
 
-			// Instruções
 			for _, inst := range block.Instructions {
 				code.WriteString("  " + inst.Format() + "\n")
 			}
 
-			// Terminador
 			if block.Terminator != nil {
 				code.WriteString("  " + block.Terminator.Format() + "\n")
 			}
 		}
-		code.WriteString("}\n\n")
-	}
 
-	// Função main padrão se não existir
-	if !ir.hasFunction("main") {
-		code.WriteString(`define i32 @main() {
-entry:
-  ret i32 0
-}
-`)
+		code.WriteString("}\n\n")
 	}
 
 	return code.String()
@@ -147,6 +133,13 @@ func (i Instruction) Format() string {
 	case "load":
 		return fmt.Sprintf("%s = %s %s, %s %s", i.Dest, i.Op, i.Type, i.Args[0], i.Args[1])
 	case "store":
+		// Remove tipo duplicado nos argumentos
+		if len(i.Args) >= 1 {
+			arg := i.Args[0]
+			if strings.Contains(arg, string(i.Type)) {
+				i.Args[0] = strings.Replace(arg, string(i.Type)+" ", "", 1)
+			}
+		}
 		return fmt.Sprintf("%s %s %s, %s %s", i.Op, i.Type, i.Args[0], i.Args[1], i.Args[2])
 	case "br":
 		if len(i.Args) == 1 {
@@ -173,3 +166,4 @@ func (ir *IntermediateRep) hasFunction(name string) bool {
 	}
 	return false
 }
+
