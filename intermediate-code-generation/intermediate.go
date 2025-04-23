@@ -49,12 +49,12 @@ type IntermediateRep struct {
 }
 
 func NewIR() *IntermediateRep {
-    return &IntermediateRep{
-        Functions:    []*Function{},
-        GlobalVars:   []Instruction{},
-        TempCounter:  0,
-        BlockCounter: 0,
-    }
+	return &IntermediateRep{
+		Functions:    []*Function{},
+		GlobalVars:   []Instruction{},
+		TempCounter:  0,
+		BlockCounter: 0,
+	}
 }
 
 func (ir *IntermediateRep) NewTemp() string {
@@ -70,18 +70,18 @@ func (ir *IntermediateRep) NewLabel(prefix string) string {
 }
 
 func (ir *IntermediateRep) CurrentFunction() *Function {
-    if len(ir.Functions) == 0 {
-        return nil
-    }
-    return ir.Functions[len(ir.Functions)-1]
+	if len(ir.Functions) == 0 {
+		return nil
+	}
+	return ir.Functions[len(ir.Functions)-1]
 }
 
 func (ir *IntermediateRep) CurrentBlock() *BasicBlock {
-    fn := ir.CurrentFunction()
-    if fn == nil || len(fn.Blocks) == 0 {
-        return nil
-    }
-    return fn.Blocks[len(fn.Blocks)-1]
+	fn := ir.CurrentFunction()
+	if fn == nil || len(fn.Blocks) == 0 {
+		return nil
+	}
+	return fn.Blocks[len(fn.Blocks)-1]
 }
 
 func (ir *IntermediateRep) GenerateLLVM() string {
@@ -123,6 +123,11 @@ func (ir *IntermediateRep) GenerateLLVM() string {
 
 func (i Instruction) Format() string {
 	switch i.Op {
+	case "call":
+		if len(i.Args) > 0 {
+			return fmt.Sprintf("%s = %s %s", i.Dest, i.Op, i.Args[0])
+		}
+		return fmt.Sprintf("%s %s", i.Op, i.Type)
 	case "icmp", "fcmp":
 		if len(i.Args) != 4 {
 			return fmt.Sprintf("; ERROR: %s instruction with invalid arguments", i.Op)
@@ -166,4 +171,3 @@ func (ir *IntermediateRep) hasFunction(name string) bool {
 	}
 	return false
 }
-

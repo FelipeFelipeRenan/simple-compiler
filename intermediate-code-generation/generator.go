@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"simple-compiler/parser"
 	"strconv"
+	"strings"
 )
 
 type CodeGenerator struct {
@@ -349,19 +350,32 @@ func (cg *CodeGenerator) generateTypeConversion(value string, fromType, toType T
 
 	return temp
 }
-
 func (cg *CodeGenerator) generateCallExpr(call *parser.CallExpression) string {
 	temp := cg.newTemp()
 	args := make([]string, len(call.Arguments))
 
+	// Processa os argumentos
 	for i, arg := range call.Arguments {
 		args[i] = cg.generateExpression(arg)
 	}
 
+	// Obtém o tipo de retorno da função
+	returnType := cg.getFunctionReturnType(call.FunctionName)
+
+	// Formata os argumentos com seus tipos
+	typedArgs := make([]string, len(args))
+	for i, arg := range args {
+		argType := cg.determineType(call.Arguments[i])
+		typedArgs[i] = fmt.Sprintf("%s %s", argType, arg)
+	}
+
 	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
 		Op:   "call",
+		Type: returnType,
 		Dest: temp,
-		Args: append([]string{call.FunctionName}, args...),
+		Args: []string{
+			fmt.Sprintf("%s @%s(%s)", returnType, call.FunctionName, strings.Join(typedArgs, ", ")),
+		},
 	})
 
 	return temp
@@ -664,4 +678,22 @@ func (cg *CodeGenerator) generateImplicitMain() {
 	}
 	cg.ir.Functions = append(cg.ir.Functions, mainFn)
 	cg.currentBlock = mainFn.Blocks[0]
+}
+
+func (cg *CodeGenerator) getFunctionReturnType(funcName string) Type {
+	// Verifica nas funções geradas
+	for _, fn := range cg.ir.Functions {
+		if fn.Name == funcName {
+			return fn.ReturnType
+		}
+	}
+
+	// Funções padrão (como print, etc)
+	switch funcName {
+	case "sum":
+		return I32
+	// Adicione outros casos conforme necessário
+	default:
+		return I32 // Padrão para funções desconhecidas
+	}
 }

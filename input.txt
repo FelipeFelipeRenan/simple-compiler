@@ -4,4 +4,8 @@ func sum(int a, int b) int {
 
 func main() void {
     int x = 5
+    int y = sum(x , 1)
+    while(true){
+        y = x + 1
+    }
 }
