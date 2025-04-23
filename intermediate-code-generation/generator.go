@@ -38,6 +38,8 @@ func NewCodeGenerator() *CodeGenerator {
 
 func (cg *CodeGenerator) GenerateFromAST(statements []parser.Statement) *IntermediateRep {
 	// Primeiro processa declarações de função
+	    cg.addPrintfSupport()
+
 	for _, stmt := range statements {
 		if fnDecl, ok := stmt.(*parser.FunctionDeclaration); ok {
 			cg.generateFunctionDecl(fnDecl)
@@ -688,12 +690,39 @@ func (cg *CodeGenerator) getFunctionReturnType(funcName string) Type {
 		}
 	}
 
-	// Funções padrão (como print, etc)
+	// Funções padrão (como print, etc) em breve, maybeee
 	switch funcName {
-	case "sum":
+	case "":
 		return I32
 	// Adicione outros casos conforme necessário
 	default:
 		return I32 // Padrão para funções desconhecidas
 	}
+}
+func (cg *CodeGenerator) addPrintfSupport() {
+    cg.ir.GlobalVars = append(cg.ir.GlobalVars, Instruction{
+        Op:    "declare",
+        Args:  []string{"i32 @printf(i8*, ...)"},
+    })
+    
+    // Adicione string de formato
+    cg.ir.GlobalVars = append(cg.ir.GlobalVars, Instruction{
+        Op:    "@.str",
+        Args:  []string{"private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\", align 1"},
+    })
+}
+
+func (cg *CodeGenerator) generatePrint(value string) {
+    fmtStr := cg.newTemp()
+    cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+        Op:   "getelementptr",
+        Dest: fmtStr,
+        Args: []string{"[4 x i8], [4 x i8]* @.str, i32 0, i32 0"},
+    })
+
+    cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+        Op:   "call",
+        Type: "i32",
+        Args: []string{fmt.Sprintf(`i32 (i8*, ...) @printf(i8* %s, i32 %s)`, fmtStr, value)},
+    })
 }

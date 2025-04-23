@@ -123,6 +123,8 @@ func (ir *IntermediateRep) GenerateLLVM() string {
 
 func (i Instruction) Format() string {
 	switch i.Op {
+	case "declare":
+        return fmt.Sprintf("declare %s", i.Args[0])
 	case "call":
 		if len(i.Args) > 0 {
 			return fmt.Sprintf("%s = %s %s", i.Dest, i.Op, i.Args[0])

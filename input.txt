@@ -2,10 +2,6 @@ func sum(int a, int b) int {
     return a + b
 }
 
-func main() void {
-    int x = 5
-    int y = sum(x , 1)
-    while(true){
-        y = x + 1
-    }
+func main() int {
+    return sum(2, 3)
 }
