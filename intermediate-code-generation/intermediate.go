@@ -84,32 +84,52 @@ func (ir *IntermediateRep) CurrentBlock() *BasicBlock {
 func (ir *IntermediateRep) GenerateLLVM() string {
 	var code strings.Builder
 
-	for _, fn := range ir.Functions {
-		// Function header
-		code.WriteString(fmt.Sprintf("define %s @%s() {\n", fn.ReturnType, fn.Name))
+	// Cabeçalho do módulo
+	code.WriteString("; ModuleID = 'simple-compiler'\n")
+	code.WriteString("source_filename = \"simple-compiler\"\n\n")
 
-		// Basic blocks
+	// Declaração de funções intrínsecas
+	code.WriteString("declare i32 @printf(i8*, ...)\n\n")
+
+	// Funções definidas pelo usuário
+	for _, fn := range ir.Functions {
+		// Assinatura da função
+		code.WriteString(fmt.Sprintf("define %s @%s(", fn.ReturnType, fn.Name))
+
+		// Parâmetros
+		params := make([]string, len(fn.Params))
+		for i, param := range fn.Params {
+			params[i] = fmt.Sprintf("%s %%%s", param.Type, param.Name)
+		}
+		code.WriteString(strings.Join(params, ", "))
+		code.WriteString(") {\n")
+
+		// Corpo da função
 		for _, block := range fn.Blocks {
-			// Block label
-			if block.Label != "" {
+			if block.Label != "" && block.Label != "entry" {
 				code.WriteString(block.Label + ":\n")
 			}
 
-			// Instructions
+			// Instruções
 			for _, inst := range block.Instructions {
-				if inst.Op == "icmp" {
-					fmt.Printf("DEBUG ICMP INSTRUCTION: %+v\n", inst)
-				}
 				code.WriteString("  " + inst.Format() + "\n")
 			}
 
-			// Terminator
+			// Terminador
 			if block.Terminator != nil {
 				code.WriteString("  " + block.Terminator.Format() + "\n")
 			}
 		}
+		code.WriteString("}\n\n")
+	}
 
-		code.WriteString("}\n")
+	// Função main padrão se não existir
+	if !ir.hasFunction("main") {
+		code.WriteString(`define i32 @main() {
+entry:
+  ret i32 0
+}
+`)
 	}
 
 	return code.String()
@@ -144,4 +164,12 @@ func (i Instruction) Format() string {
 		}
 		return fmt.Sprintf("%s %s %s", i.Op, i.Type, strings.Join(i.Args, ", "))
 	}
+}
+func (ir *IntermediateRep) hasFunction(name string) bool {
+	for _, fn := range ir.Functions {
+		if fn.Name == name {
+			return true
+		}
+	}
+	return false
 }

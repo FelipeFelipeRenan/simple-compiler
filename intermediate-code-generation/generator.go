@@ -37,11 +37,11 @@ func NewCodeGenerator() *CodeGenerator {
 func (cg *CodeGenerator) GenerateFromAST(statements []parser.Statement) *IntermediateRep {
 	// Primeiro passada: declara todas as variáveis
 
-    for _, stmt := range statements {
-        if fnDecl, ok := stmt.(*parser.FunctionDeclaration); ok {
-            cg.generateFunctionDecl(fnDecl)
-        }
-    }
+	for _, stmt := range statements {
+		if fnDecl, ok := stmt.(*parser.FunctionDeclaration); ok {
+			cg.generateFunctionDecl(fnDecl)
+		}
+	}
 
 	for _, stmt := range statements {
 		if decl, ok := stmt.(*parser.VariableDeclaration); ok {
@@ -50,11 +50,11 @@ func (cg *CodeGenerator) GenerateFromAST(statements []parser.Statement) *Interme
 	}
 
 	// Segunda passada: gera o código
-    for _, stmt := range statements {
-        if _, ok := stmt.(*parser.FunctionDeclaration); !ok {
-            cg.generateStatement(stmt)
-        }
-    }
+	for _, stmt := range statements {
+		if _, ok := stmt.(*parser.FunctionDeclaration); !ok {
+			cg.generateStatement(stmt)
+		}
+	}
 
 	if cg.currentBlock.Terminator == nil {
 		cg.currentBlock.Terminator = &Instruction{
@@ -281,42 +281,54 @@ func (cg *CodeGenerator) generateBinaryExpr(expr *parser.BinaryExpression) strin
 }
 
 func (cg *CodeGenerator) generateComparison(expr *parser.BinaryExpression, left, right string, leftType, rightType Type) string {
-    temp := cg.newTemp()
-    var op string
-    var predicate string // Novo: armazenar o predicado separadamente
-    var cmpType Type = I1
+	temp := cg.newTemp()
+	var op string
+	var predicate string // Novo: armazenar o predicado separadamente
+	var cmpType Type = I1
 
-    if leftType == FLOAT || rightType == FLOAT {
-        op = "fcmp"
-        switch expr.Operator {
-        case "<": predicate = "olt"
-        case ">": predicate = "ogt"
-        case "<=": predicate = "ole"
-        case ">=": predicate = "oge"
-        case "==": predicate = "oeq"
-        case "!=": predicate = "one"
-        }
-    } else {
-        op = "icmp"
-        switch expr.Operator {
-        case "<": predicate = "slt"
-        case ">": predicate = "sgt"
-        case "<=": predicate = "sle"
-        case ">=": predicate = "sge"
-        case "==": predicate = "eq"
-        case "!=": predicate = "ne"
-        }
-    }
+	if leftType == FLOAT || rightType == FLOAT {
+		op = "fcmp"
+		switch expr.Operator {
+		case "<":
+			predicate = "olt"
+		case ">":
+			predicate = "ogt"
+		case "<=":
+			predicate = "ole"
+		case ">=":
+			predicate = "oge"
+		case "==":
+			predicate = "oeq"
+		case "!=":
+			predicate = "one"
+		}
+	} else {
+		op = "icmp"
+		switch expr.Operator {
+		case "<":
+			predicate = "slt"
+		case ">":
+			predicate = "sgt"
+		case "<=":
+			predicate = "sle"
+		case ">=":
+			predicate = "sge"
+		case "==":
+			predicate = "eq"
+		case "!=":
+			predicate = "ne"
+		}
+	}
 
-    // Adiciona o predicado como primeiro argumento
-    cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-        Op:   op,
-        Type: cmpType,
-        Args: []string{predicate, string(leftType), left, right},
-        Dest: temp,
-    })
+	// Adiciona o predicado como primeiro argumento
+	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+		Op:   op,
+		Type: cmpType,
+		Args: []string{predicate, string(leftType), left, right},
+		Dest: temp,
+	})
 
-    return temp
+	return temp
 }
 
 func (cg *CodeGenerator) generateTypeConversion(value string, fromType, toType Type) string {
@@ -502,65 +514,88 @@ func (cg *CodeGenerator) generateReturnStatement(ret *parser.ReturnStatement) {
 }
 
 func (cg *CodeGenerator) generateBlock(block *parser.BlockStatement) {
-    if block == nil {
-        return
-    }
+	if block == nil {
+		return
+	}
 
-    for _, stmt := range block.Statements {
-        cg.generateStatement(stmt)
-    }
+	for _, stmt := range block.Statements {
+		cg.generateStatement(stmt)
+	}
 }
-
 func (cg *CodeGenerator) generateFunctionDecl(decl *parser.FunctionDeclaration) {
-    // Verifica se a declaração é válida
-    if decl == nil {
-        return
-    }
+	// Verifica se a declaração é válida
+	if decl == nil {
+		return
+	}
 
-    // Cria nova função no IR
-    fn := &Function{
-        Name:       decl.Name,
-        ReturnType: cg.llvmTypeFromParserType(decl.ReturnType),
-        Blocks:     []*BasicBlock{{Label: "entry"}},
-    }
-    cg.ir.Functions = append(cg.ir.Functions, fn)
-    cg.currentBlock = fn.Blocks[0]
+	// Prepara parâmetros para a assinatura da função
+	var paramTypes []string
+	for _, param := range decl.Parameters {
+		paramTypes = append(paramTypes, string(cg.llvmTypeFromParserType(param.Type)))
+	}
 
-    // Adiciona parâmetros à tabela de símbolos
-    for _, param := range decl.Parameters {
-        alloca := cg.newTemp()
-        cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-            Op:   "alloca",
-            Type: cg.llvmTypeFromParserType(param.Type),
-            Dest: alloca,
-        })
+	// Cria nova função no IR
+	fn := &Function{
+		Name:       decl.Name,
+		ReturnType: cg.llvmTypeFromParserType(decl.ReturnType),
+		Params:     make([]Param, len(decl.Parameters)),
+		Blocks:     []*BasicBlock{{Label: "entry"}},
+	}
 
-        cg.symbolTable[param.Name] = VariableInfo{
-            Alloca: alloca,
-            Type:   cg.llvmTypeFromParserType(param.Type),
-        }
-    }
+	// Adiciona parâmetros à função
+	for i, param := range decl.Parameters {
+		fn.Params[i] = Param{
+			Name: param.Name,
+			Type: cg.llvmTypeFromParserType(param.Type),
+		}
+	}
 
-    // Gera código para o corpo da função
-    if decl.Body != nil {
-        cg.generateBlock(&parser.BlockStatement{Statements: decl.Body})
-    }
+	cg.ir.Functions = append(cg.ir.Functions, fn)
+	cg.currentBlock = fn.Blocks[0]
 
-    // Adiciona retorno padrão se necessário
-    if cg.currentBlock.Terminator == nil {
-        if decl.ReturnType == "void" {
-            cg.currentBlock.Terminator = &Instruction{
-                Op:   "ret",
-                Type: VOID,
-            }
-        } else {
-            cg.currentBlock.Terminator = &Instruction{
-                Op:   "ret",
-                Type: cg.llvmTypeFromParserType(decl.ReturnType),
-                Args: []string{"0"},
-            }
-        }
-    }
+	// Aloca e armazena parâmetros
+	for i, param := range decl.Parameters {
+		alloca := cg.newTemp()
+		cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+			Op:   "alloca",
+			Type: cg.llvmTypeFromParserType(param.Type),
+			Dest: alloca,
+		})
+
+		// Armazena o valor do parâmetro
+		paramType := string(cg.llvmTypeFromParserType(param.Type)) // Convertemos para string
+		cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+			Op:   "store",
+			Type: cg.llvmTypeFromParserType(param.Type),
+			Args: []string{fmt.Sprintf("%%%d", i), paramType + "*", alloca},
+		})
+
+		cg.symbolTable[param.Name] = VariableInfo{
+			Alloca: alloca,
+			Type:   cg.llvmTypeFromParserType(param.Type),
+		}
+	}
+
+	// Gera código para o corpo da função
+	if decl.Body != nil {
+		cg.generateBlock(&parser.BlockStatement{Statements: decl.Body})
+	}
+
+	// Adiciona retorno padrão se necessário
+	if cg.currentBlock.Terminator == nil {
+		if decl.ReturnType == "void" {
+			cg.currentBlock.Terminator = &Instruction{
+				Op:   "ret",
+				Type: VOID,
+			}
+		} else {
+			cg.currentBlock.Terminator = &Instruction{
+				Op:   "ret",
+				Type: cg.llvmTypeFromParserType(decl.ReturnType),
+				Args: []string{"0"},
+			}
+		}
+	}
 }
 
 func (cg *CodeGenerator) determineType(expr parser.Expression) Type {
@@ -614,10 +649,10 @@ func (cg *CodeGenerator) newLabel(prefix string) string {
 	return label
 }
 func (cg *CodeGenerator) AddError(msg string) {
-    cg.errors = append(cg.errors, msg)
+	cg.errors = append(cg.errors, msg)
 }
 
 // Método para obter erros
 func (cg *CodeGenerator) GetErrors() []string {
-    return cg.errors
+	return cg.errors
 }
