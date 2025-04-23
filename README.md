@@ -1,5 +1,5 @@
 # Simple Compiler
-
+[![FelipeFelipeRenan/simple-compiler context](https://badge.forgithub.com/FelipeFelipeRenan/simple-compiler)](https://uithub.com/FelipeFelipeRenan/simple-compiler)
 ## How to run
 
 First of all, download the source code of the compiler, then run the command: 
