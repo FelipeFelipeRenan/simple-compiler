@@ -66,15 +66,25 @@ func main() {
 	}
 
 	// 6. Geração de código intermediário
-	if len(p.Errors) == 0 {
-		generator := icg.NewCodeGenerator()
-		intermediate := generator.GenerateFromAST(statements)
-		fmt.Println("\n; Generated LLVM IR")
-		fmt.Println(intermediate.GenerateLLVM())
-	}
+    if len(p.Errors) == 0 {
+        generator := icg.NewCodeGenerator()
+        intermediate := generator.GenerateFromAST(statements)
+        
+        // Verifica erros usando o novo método GetErrors()
+        if errs := generator.GetErrors(); len(errs) > 0 {
+            fmt.Println("\nErros na geração de código:")
+            for _, err := range errs {
+                fmt.Printf("🔴 %s\n", err)
+            }
+            os.Exit(1)
+        }
 
-	elapsed := time.Since(startingTime)
-	fmt.Printf("\nTempo de compilação: %v\n", elapsed)
+        fmt.Println("\n; Generated LLVM IR")
+        fmt.Println(intermediate.GenerateLLVM())
+    }
+
+    elapsed := time.Since(startingTime)
+    fmt.Printf("\nTempo de compilação: %v\n", elapsed)
 }
 
 func sortErrorsByPosition(errors []parser.ParseError) {

@@ -12,6 +12,8 @@ type CodeGenerator struct {
 	currentBlock *BasicBlock
 	tempCounter  int
 	labelCounter int
+	errors       []string // Campo errors adicionado
+
 }
 
 type VariableInfo struct {
@@ -27,6 +29,8 @@ func NewCodeGenerator() *CodeGenerator {
 		currentBlock: ir.CurrentBlock(),
 		tempCounter:  0,
 		labelCounter: 0,
+		errors:       make([]string, 0), // Inicializa o slice de erros
+
 	}
 }
 
@@ -498,67 +502,63 @@ func (cg *CodeGenerator) generateReturnStatement(ret *parser.ReturnStatement) {
 }
 
 func (cg *CodeGenerator) generateBlock(block *parser.BlockStatement) {
-	if block == nil {
-		return
-	}
+    if block == nil {
+        return
+    }
 
-	for _, stmt := range block.Statements {
-		cg.generateStatement(stmt)
-	}
+    for _, stmt := range block.Statements {
+        cg.generateStatement(stmt)
+    }
 }
 
-
 func (cg *CodeGenerator) generateFunctionDecl(decl *parser.FunctionDeclaration) {
+    // Verifica se a declaração é válida
+    if decl == nil {
+        return
+    }
+
     // Cria nova função no IR
     fn := &Function{
         Name:       decl.Name,
         ReturnType: cg.llvmTypeFromParserType(decl.ReturnType),
+        Blocks:     []*BasicBlock{{Label: "entry"}},
     }
-
-    // Adiciona parâmetros
-    for _, param := range decl.Parameters {
-        fn.Params = append(fn.Params, Param{
-            Name: param.Name,
-            Type: cg.llvmTypeFromParserType(param.Type),
-        })
-    }
-
     cg.ir.Functions = append(cg.ir.Functions, fn)
-    cg.currentBlock = fn.Blocks[0] // Bloco entry
+    cg.currentBlock = fn.Blocks[0]
 
-    // Registra parâmetros na tabela de símbolos
-    for i, param := range fn.Params {
+    // Adiciona parâmetros à tabela de símbolos
+    for _, param := range decl.Parameters {
         alloca := cg.newTemp()
         cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
             Op:   "alloca",
-            Type: param.Type,
+            Type: cg.llvmTypeFromParserType(param.Type),
             Dest: alloca,
         })
-        
-        // Store do valor do parâmetro
-        cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-            Op:   "store",
-            Type: param.Type,
-            Args: []string{fmt.Sprintf("%%%d", i+1), string(param.Type) + "*", alloca},
-        })
-        
+
         cg.symbolTable[param.Name] = VariableInfo{
             Alloca: alloca,
-            Type:   param.Type,
+            Type:   cg.llvmTypeFromParserType(param.Type),
         }
     }
 
     // Gera código para o corpo da função
-    for _, stmt := range decl.Body {
-        cg.generateStatement(stmt)
+    if decl.Body != nil {
+        cg.generateBlock(&parser.BlockStatement{Statements: decl.Body})
     }
 
     // Adiciona retorno padrão se necessário
     if cg.currentBlock.Terminator == nil {
-        cg.currentBlock.Terminator = &Instruction{
-            Op:   "ret",
-            Type: fn.ReturnType,
-            Args: []string{string(fn.ReturnType) + " 0"},
+        if decl.ReturnType == "void" {
+            cg.currentBlock.Terminator = &Instruction{
+                Op:   "ret",
+                Type: VOID,
+            }
+        } else {
+            cg.currentBlock.Terminator = &Instruction{
+                Op:   "ret",
+                Type: cg.llvmTypeFromParserType(decl.ReturnType),
+                Args: []string{"0"},
+            }
         }
     }
 }
@@ -612,4 +612,12 @@ func (cg *CodeGenerator) newLabel(prefix string) string {
 	label := fmt.Sprintf("%s%d", prefix, cg.labelCounter)
 	cg.labelCounter++
 	return label
+}
+func (cg *CodeGenerator) AddError(msg string) {
+    cg.errors = append(cg.errors, msg)
+}
+
+// Método para obter erros
+func (cg *CodeGenerator) GetErrors() []string {
+    return cg.errors
 }
