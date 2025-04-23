@@ -36,6 +36,12 @@ func main() {
 			break
 		}
 	}
+	fmt.Println("\nTokens gerados:")
+	for _, tok := range tokens {
+		fmt.Printf("Type: %-10s Lexeme: %-10s Line: %d Column: %d\n",
+			tok.Type, tok.Lexeme, tok.Line, tok.Column)
+	}
+
 
 	// 3. Análise Sintática
 	p := parser.New(tokens)
@@ -79,4 +85,3 @@ func sortErrorsByPosition(errors []parser.ParseError) {
 		return errors[i].Line < errors[j].Line
 	})
 }
-

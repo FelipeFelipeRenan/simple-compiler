@@ -202,6 +202,9 @@ func (l *Lexer) NextToken() token.Token {
 	case '}':
 		tok.Lexeme = "}"
 		tok.Type = token.RBRACE
+	case ',':
+        tok.Type = token.COMMA  // Corrigido para usar a constante COMMA
+        tok.Lexeme = ","
     default:
         if unicode.IsLetter(rune(l.ch)) {
             tok.Lexeme = l.readIdentifier()
