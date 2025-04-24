@@ -83,6 +83,7 @@ func (ir *IntermediateRep) CurrentBlock() *BasicBlock {
 	}
 	return fn.Blocks[len(fn.Blocks)-1]
 }
+
 func (ir *IntermediateRep) GenerateLLVM() string {
 	var code strings.Builder
 

@@ -9,10 +9,11 @@ import (
 type SymbolCategory int
 
 const (
-    Variable SymbolCategory = iota
-    Function
-    Constant
+	Variable SymbolCategory = iota
+	Function
+	Constant
 )
+
 // Tipo para informações do símbolo
 type SymbolInfo struct {
 	Name      string
@@ -53,8 +54,14 @@ func (st *SymbolTable) PopScope() {
 func (st *SymbolTable) Declare(name string, info SymbolInfo) error {
     currentScope := st.scopes[len(st.scopes)-1]
     
+    // Permite sobrecarregar funções (se for função)
+    if info.Category == Function {
+        currentScope[name] = info
+        return nil
+    }
+    
     if _, exists := currentScope[name]; exists {
-        return fmt.Errorf("symbol '%s' already declared in this scope", name)
+        return fmt.Errorf("symbol '%s' already declared", name)
     }
     
     currentScope[name] = info
@@ -93,32 +100,4 @@ func (st *SymbolTable) Update(name string, value interface{}) error {
 func (st *SymbolTable) ExistsInCurrentScope(name string) bool {
 	_, exists := st.scopes[len(st.scopes)-1][name]
 	return exists
-}
-
-func (st *SymbolTable) DeclareFunction(name string, returnType string, params []*VariableDeclaration) error {
-    if st.ExistsInCurrentScope(name) {
-        return fmt.Errorf("function '%s' already declared", name)
-    }
-
-    st.scopes[len(st.scopes)-1][name] = SymbolInfo{
-        Name:      name,
-        Category:  Function,
-        Type:      returnType,
-        DefinedAt: 0, // TODO: Set actual line number
-    }
-
-    // Adiciona parâmetros ao escopo
-    st.PushScope()
-    for _, param := range params {
-        if err := st.Declare(param.Name, SymbolInfo{
-            Name:      param.Name,
-            Category:  Variable,
-            Type:      param.Type,
-            DefinedAt: param.Token.Line,
-        }); err != nil {
-            return err
-        }
-    }
-
-    return nil
 }

@@ -1,6 +1,3 @@
-declare i32 @printf(i8* nocapture readonly, ...) nounwind
-@.str = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
-
 define i32 @sum(i32 %a, i32 %b) {
 entry:
   %t0 = alloca i32 
@@ -16,9 +13,6 @@ entry:
 define i32 @main() {
 entry:
   %t5 = call i32 @sum(i32 2, i32 3)
-
-  %fmt = getelementptr [4 x i8], [4 x i8]* @.str, i32 0, i32 0
-  call i32 (i8*, ...) @printf(i8* %fmt, i32 %t5)
   ret i32 %t5
 }
 

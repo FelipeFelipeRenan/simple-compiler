@@ -6,7 +6,6 @@ import (
 	icg "simple-compiler/intermediate-code-generation"
 	"simple-compiler/lexer"
 	"simple-compiler/parser"
-	"simple-compiler/semantic"
 	"simple-compiler/token"
 	"sort"
 	"time"
@@ -15,7 +14,7 @@ import (
 func main() {
 	startingTime := time.Now()
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "Uso: go run cmd/main.go <arquivo>")
+		fmt.Fprintln(os.Stderr, "Uso: ./main <arquivo>")
 		os.Exit(1)
 	}
 	fileName := os.Args[1]
@@ -57,15 +56,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 5. Análise Semântica
-	analyzer := semantic.New(statements)
-	semanticErrors := analyzer.Analyze()
-	if len(semanticErrors) > 0 {
-		fmt.Println("\nErros semânticos encontrados:")
-		for _, err := range semanticErrors {
-			fmt.Printf("🔴 Linha %d - %s\n", err.Line, err.Message)
+	// 5. Exibir AST
+	if len(statements) > 0 {
+		fmt.Println("\nAST gerada com sucesso:")
+		for _, stmt := range statements {
+			fmt.Println(stmt.String())
 		}
-		os.Exit(1)
 	}
 
 	generatedCode := ""
@@ -97,6 +93,7 @@ func main() {
 	elapsed := time.Since(startingTime)
 	fmt.Printf("\nTempo de compilação: %v\n", elapsed)
 }
+
 func sortErrorsByPosition(errors []parser.ParseError) {
 	sort.Slice(errors, func(i, j int) bool {
 		if errors[i].Line == errors[j].Line {

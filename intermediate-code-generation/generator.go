@@ -612,6 +612,7 @@ func (cg *CodeGenerator) generateFunctionDecl(decl *parser.FunctionDeclaration) 
 		}
 	}
 }
+
 func (cg *CodeGenerator) determineType(expr parser.Expression) Type {
 	switch e := expr.(type) {
 	case *parser.Number:
