@@ -2,6 +2,7 @@ package lexer
 
 import (
 	"simple-compiler/token"
+	"unicode"
 )
 
 type Lexer struct {
@@ -183,9 +184,6 @@ func (l *Lexer) NextToken() token.Token {
 	case '/':
 		tok.Type = token.DIV
 		tok.Lexeme = "/"
-	case ',':
-		tok.Type = token.COMMA
-		tok.Lexeme = ","
 	case ';':
 		tok.Type = token.SEMICOLON
 		tok.Lexeme = ";"
