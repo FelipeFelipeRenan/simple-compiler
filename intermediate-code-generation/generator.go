@@ -38,7 +38,7 @@ func NewCodeGenerator() *CodeGenerator {
 
 func (cg *CodeGenerator) GenerateFromAST(statements []parser.Statement) *IntermediateRep {
 	// Primeiro processa declarações de função
-	    cg.addPrintfSupport()
+	cg.addPrintfSupport()
 
 	for _, stmt := range statements {
 		if fnDecl, ok := stmt.(*parser.FunctionDeclaration); ok {
@@ -83,8 +83,12 @@ func (cg *CodeGenerator) generateStatement(stmt parser.Statement) {
 		cg.generateReturnStatement(s)
 	case *parser.BlockStatement:
 		cg.generateBlock(s)
-	case *parser.ExpressionStatement:
-		cg.generateExpression(s.Expression)
+    case *parser.ExpressionStatement:
+        if call, ok := s.Expression.(*parser.CallExpression); ok && call.FunctionName == "print" {
+            cg.generatePrintCall(call)
+        } else {
+            cg.generateExpression(s.Expression)
+        }
 	}
 }
 
@@ -352,7 +356,38 @@ func (cg *CodeGenerator) generateTypeConversion(value string, fromType, toType T
 
 	return temp
 }
+
 func (cg *CodeGenerator) generateCallExpr(call *parser.CallExpression) string {
+    if call.FunctionName == "print" {
+        if len(call.Arguments) != 1 {
+            cg.AddError("print requer exatamente 1 argumento")
+            return "0"
+        }
+        
+        arg := cg.generateExpression(call.Arguments[0])
+        argType := cg.determineType(call.Arguments[0])
+        
+        fmtStr := cg.newTemp()
+        formatStr := "@.str" // padrão para int
+        if argType == FLOAT {
+            formatStr = "@.strf"
+        }
+        
+        cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+            Op:   "getelementptr",
+            Dest: fmtStr,
+            Args: []string{fmt.Sprintf("[4 x i8], [4 x i8]* %s, i32 0, i32 0", formatStr)},
+        })
+        
+        cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+            Op:   "call",
+            Type: I32,
+            Args: []string{fmt.Sprintf("i32 (i8*, ...) @printf(i8* %s, %s %s)", fmtStr, argType, arg)},
+        })
+        
+        return "0"
+    }
+	// Restante da implementação original...
 	temp := cg.newTemp()
 	args := make([]string, len(call.Arguments))
 
@@ -699,30 +734,82 @@ func (cg *CodeGenerator) getFunctionReturnType(funcName string) Type {
 		return I32 // Padrão para funções desconhecidas
 	}
 }
+
 func (cg *CodeGenerator) addPrintfSupport() {
+    // Declaração da função printf
     cg.ir.GlobalVars = append(cg.ir.GlobalVars, Instruction{
         Op:    "declare",
         Args:  []string{"i32 @printf(i8*, ...)"},
     })
     
-    // Adicione string de formato
+    // String de formato para inteiros (%d\n)
     cg.ir.GlobalVars = append(cg.ir.GlobalVars, Instruction{
         Op:    "@.str",
-        Args:  []string{"private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\", align 1"},
+        Args:  []string{"= private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\", align 1"},
     })
 }
 
-func (cg *CodeGenerator) generatePrint(value string) {
-    fmtStr := cg.newTemp()
+func (cg *CodeGenerator) generatePrintCall(call *parser.CallExpression) {
+    if len(call.Arguments) != 1 {
+        cg.AddError("print requer exatamente 1 argumento")
+        return
+    }
+    
+    arg := cg.generateExpression(call.Arguments[0])
+    argType := cg.determineType(call.Arguments[0])
+    
+    formatStr := "@.str"
+    if argType == FLOAT {
+        formatStr = "@.strf"
+    }
+    
+    fmtPtr := cg.newTemp()
     cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
         Op:   "getelementptr",
-        Dest: fmtStr,
-        Args: []string{"[4 x i8], [4 x i8]* @.str, i32 0, i32 0"},
+        Dest: fmtPtr,
+        Args: []string{fmt.Sprintf("[4 x i8], [4 x i8]* %s, i32 0, i32 0", formatStr)},
     })
-
+    
+    // Adiciona um nome temporário para o resultado da chamada
+    callResult := cg.newTemp()
     cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
         Op:   "call",
-        Type: "i32",
-        Args: []string{fmt.Sprintf(`i32 (i8*, ...) @printf(i8* %s, i32 %s)`, fmtStr, value)},
+        Dest: callResult,  // Adiciona o destino aqui
+        Type: I32,
+        Args: []string{fmt.Sprintf("i32 (i8*, ...) @printf(i8* %s, %s %s)", fmtPtr, argType, arg)},
     })
+}
+
+func (cg *CodeGenerator) generatePrintInt(value string) {
+	// Carrega o formato para inteiro
+	fmtStr := cg.newTemp()
+	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+		Op:   "getelementptr",
+		Dest: fmtStr,
+		Args: []string{"[4 x i8], [4 x i8]* @.str, i32 0, i32 0"},
+	})
+
+	// Gera a chamada para printf
+	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+		Op:   "call",
+		Type: I32,
+		Args: []string{fmt.Sprintf("i32 (i8*, ...) @printf(i8* %s, i32 %s)", fmtStr, value)},
+	})
+}
+
+func (cg *CodeGenerator) generatePrintFloat(value string) {
+	// Carrega o formato para float
+	fmtStr := cg.newTemp()
+	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+		Op:   "getelementptr",
+		Dest: fmtStr,
+		Args: []string{"[4 x i8], [4 x i8]* @.strf, i32 0, i32 0"},
+	})
+
+	// Gera a chamada para printf
+	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+		Op:   "call",
+		Type: I32,
+		Args: []string{fmt.Sprintf("i32 (i8*, ...) @printf(i8* %s, float %s)", fmtStr, value)},
+	})
 }

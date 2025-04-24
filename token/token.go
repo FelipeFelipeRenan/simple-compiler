@@ -50,4 +50,5 @@ const (
 	FUNC           TokenType = "FUNC"  // func declaration
 	COMMA          TokenType = "COMMA" //  ,
 	COLON          TokenType = "COLON" // :
+	PRINT          TokenType = "PRINT" // print
 )

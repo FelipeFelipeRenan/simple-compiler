@@ -3,5 +3,7 @@ func sum(int a, int b) int {
 }
 
 func main() int {
-    return sum(2, 3)
+    int result = sum(2, -10)
+    print(result)
+    return result
 }

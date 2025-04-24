@@ -111,8 +111,10 @@ func (a *Analyzer) resultType(leftType, rightType string) string {
 	return "int"
 }
 
+
 func (a *Analyzer) checkExpression(expr parser.Expression) string {
 	switch e := expr.(type) {
+
 	case *parser.Identifier:
 		return a.checkIdentifier(e)
 	case *parser.BinaryExpression:
@@ -133,7 +135,13 @@ func (a *Analyzer) checkExpression(expr parser.Expression) string {
 	}
 }
 
+// Modifique a verificação de identificador
 func (a *Analyzer) checkIdentifier(ident *parser.Identifier) string {
+	// Verifica se é uma função builtin
+	if a.isBuiltinFunction(ident.Name) {
+		return "void" // print não retorna valor
+	}
+
 	sym, exists := a.symbolTable.Resolve(ident.Name)
 	if !exists {
 		a.addError(fmt.Sprintf("Identificador não declarado: %s", ident.Name),
@@ -157,8 +165,13 @@ func (a *Analyzer) checkStatement(stmt parser.Statement) {
 		a.checkForStatement(s)
 	case *parser.BlockStatement:
 		a.checkBlockStatement(s)
-	case *parser.ExpressionStatement:
-		a.checkExpression(s.Expression)
+    case *parser.ExpressionStatement:
+        if call, ok := s.Expression.(*parser.CallExpression); ok && call.FunctionName == "print" {
+            a.checkPrintCall(call)
+        } else {
+            a.checkExpression(s.Expression)
+        }
+
 	case *parser.FunctionDeclaration:
 		a.symbolTable.PushScope()
 		// Verifica parâmetros
@@ -284,31 +297,66 @@ func (a *Analyzer) checkForStatement(forStmt *parser.ForStatement) {
 
 // semantic/semantic_analyzer.go
 func (a *Analyzer) checkFunctionDecl(fd *parser.FunctionDeclaration) {
-    // Registra função no escopo GLOBAL
-    a.symbolTable.Declare(fd.Name, parser.SymbolInfo{
-        Name:      fd.Name,
-        Type:      fd.ReturnType,
-        Category:  parser.Function,
-        DefinedAt: fd.Token.Line,
-    })
+	// Registra função no escopo GLOBAL
+	a.symbolTable.Declare(fd.Name, parser.SymbolInfo{
+		Name:      fd.Name,
+		Type:      fd.ReturnType,
+		Category:  parser.Function,
+		DefinedAt: fd.Token.Line,
+	})
 
-    // Cria escopo LOCAL para parâmetros
-    a.symbolTable.PushScope()
-    
-    // Registra parâmetros
-    for _, param := range fd.Parameters {
-        a.symbolTable.Declare(param.Name, parser.SymbolInfo{
-            Name:      param.Name,
-            Type:      param.Type,
-            Category:  parser.Variable,
-            DefinedAt: param.Token.Line,
-        })
+	// Cria escopo LOCAL para parâmetros
+	a.symbolTable.PushScope()
+
+	// Registra parâmetros
+	for _, param := range fd.Parameters {
+		a.symbolTable.Declare(param.Name, parser.SymbolInfo{
+			Name:      param.Name,
+			Type:      param.Type,
+			Category:  parser.Variable,
+			DefinedAt: param.Token.Line,
+		})
+	}
+
+	// Verifica corpo
+	for _, stmt := range fd.Body {
+		a.checkStatement(stmt)
+	}
+
+	a.symbolTable.PopScope()
+}
+
+func (a *Analyzer) isBuiltinFunction(name string) bool {
+	return name == "print"
+}
+
+func (a *Analyzer) checkCallExpression(call *parser.CallExpression) string {
+	if call.FunctionName == "print" {
+		if len(call.Arguments) != 1 {
+			a.addError("print requer exatamente 1 argumento", call.Token.Line, call.Token.Lexeme)
+		} else {
+			argType := a.checkExpression(call.Arguments[0])
+			if argType != "int" && argType != "float" {
+				a.addError(fmt.Sprintf("print só suporta int ou float, recebeu %s", argType),
+					call.Token.Line, call.Token.Lexeme)
+			}
+		}
+		return "void"
+	}
+	// ... resto da implementação original
+	return ""
+}
+
+
+func (a *Analyzer) checkPrintCall(call *parser.CallExpression) {
+    if len(call.Arguments) != 1 {
+        a.addError("print requer exatamente 1 argumento", call.Token.Line, call.Token.Lexeme)
+        return
     }
     
-    // Verifica corpo
-    for _, stmt := range fd.Body {
-        a.checkStatement(stmt)
+    argType := a.checkExpression(call.Arguments[0])
+    if argType != "int" && argType != "float" {
+        a.addError(fmt.Sprintf("print só suporta int ou float, recebeu %s", argType),
+            call.Token.Line, call.Token.Lexeme)
     }
-    
-    a.symbolTable.PopScope()
 }

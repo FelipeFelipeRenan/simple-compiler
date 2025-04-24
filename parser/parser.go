@@ -306,6 +306,8 @@ func (p *Parser) parsePrimary() Expression {
 
 func (p *Parser) ParseStatement() Statement {
 	switch p.current.Type {
+	case token.PRINT:
+		return p.parsePrintStatement()
 	case token.FUNC:
 		return p.parseFunctionDeclaration()
 	case token.TYPE:
@@ -724,5 +726,34 @@ func (p *Parser) skipUntil(stopTokens ...token.TokenType) {
 			}
 		}
 		p.nextToken()
+	}
+}
+func (p *Parser) parsePrintStatement() Statement {
+	printToken := p.current
+	p.nextToken() // Pula 'print'
+
+	if p.current.Type != token.LPAREN {
+		p.addError("Esperado '(' após print", printToken.Line, printToken.Column)
+		return nil
+	}
+	p.nextToken() // Pula '('
+
+	expr := p.parseExpression()
+	if expr == nil {
+		return nil
+	}
+
+	if p.current.Type != token.RPAREN {
+		p.addError("Esperado ')' após expressão do print", p.current.Line, p.current.Column)
+		return nil
+	}
+	p.nextToken() // Pula ')'
+
+	return &ExpressionStatement{
+		Expression: &CallExpression{
+			FunctionName: "print",
+			Arguments:    []Expression{expr},
+			Token:        printToken,
+		},
 	}
 }
