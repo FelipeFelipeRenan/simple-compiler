@@ -14,7 +14,7 @@ import (
 func main() {
 	startingTime := time.Now()
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "Uso: go run cmd/main.go <arquivo>")
+		fmt.Fprintln(os.Stderr, "Uso: ./main <arquivo>")
 		os.Exit(1)
 	}
 	fileName := os.Args[1]
