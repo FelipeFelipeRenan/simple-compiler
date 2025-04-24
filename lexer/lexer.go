@@ -200,32 +200,28 @@ func (l *Lexer) NextToken() token.Token {
 		tok.Lexeme = "{"
 	case '}':
 		tok.Type = token.RBRACE
-		tok.Lexeme = "}"
-	case '"':
-		tok.Type = token.STRING_LITERAL
-		tok.Lexeme = l.readString()
-		if tok.Lexeme == "" {
-			tok.Type = token.ILLEGAL
-			tok.Lexeme = "string não finalizada"
-		}
-		return tok
-	case 0:
-		tok.Type = token.EOF
-		tok.Lexeme = ""
-	default:
-		if isLetter(l.ch) {
-			tok.Lexeme = l.readIdentifier()
-			tok.Type = l.lookupIdent(tok.Lexeme)
-			return tok
-		} else if isDigit(l.ch) {
-			tok.Type = token.NUMBER
-			tok.Lexeme = l.readNumber()
-			return tok
-		} else {
-			tok.Type = token.ILLEGAL
-			tok.Lexeme = string(l.ch)
-		}
-	}
+	case ',':
+        tok.Type = token.COMMA  // Corrigido para usar a constante COMMA
+        tok.Lexeme = ","
+    default:
+        if unicode.IsLetter(rune(l.ch)) {
+            tok.Lexeme = l.readIdentifier()
+            if kw, ok := keywords[tok.Lexeme]; ok {
+                tok.Type = kw
+            } else {
+                tok.Type = token.IDENTIFIER
+            }
+            return tok
+        } else if unicode.IsDigit(rune(l.ch)) {
+            tok.Lexeme = l.readNumber()
+            tok.Type = token.NUMBER
+            return tok
+        } else if l.ch != 0 {
+            tok.Type = token.ILLEGAL
+            tok.Lexeme = string(l.ch)
+            l.readChar()
+        }
+    }
 
 	l.readChar()
 	return tok

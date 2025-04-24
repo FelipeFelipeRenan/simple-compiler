@@ -37,13 +37,12 @@ func main() {
 			break
 		}
 	}
-
-	// Adicione isso temporariamente no cmd/main.go após a análise léxica
 	fmt.Println("\nTokens gerados:")
 	for _, tok := range tokens {
 		fmt.Printf("Type: %-10s Lexeme: %-10s Line: %d Column: %d\n",
 			tok.Type, tok.Lexeme, tok.Line, tok.Column)
 	}
+
 	// 3. Análise Sintática
 	p := parser.New(tokens)
 	statements := p.Parse()
@@ -69,12 +68,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 6. Geração de Código Intermediário
-	generator := icg.NewCodeGenerator()
-	intermediate := generator.GenerateFromAST(statements)
+	generatedCode := ""
+	// 6. Geração de código intermediário
+	if len(p.Errors) == 0 {
+		generator := icg.NewCodeGenerator()
+		intermediate := generator.GenerateFromAST(statements)
 
-	fmt.Println("\n; Generated LLVM IR")
-	fmt.Println(intermediate.GenerateLLVM())
+		// Verifica erros usando o novo método GetErrors()
+		if errs := generator.GetErrors(); len(errs) > 0 {
+			fmt.Println("\nErros na geração de código:")
+			for _, err := range errs {
+				fmt.Printf("🔴 %s\n", err)
+			}
+			os.Exit(1)
+		}
+
+		generatedCode = intermediate.GenerateLLVM()
+		fmt.Println("\n; Generated LLVM IR")
+		fmt.Println(generatedCode)
+
+	}
+
+	data := []byte(generatedCode)
+	if err := os.WriteFile("output.ll", data, 0777); err != nil {
+		panic(err)
+	}
 
 	elapsed := time.Since(startingTime)
 	fmt.Printf("\nTempo de compilação: %v\n", elapsed)
