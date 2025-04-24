@@ -17,10 +17,22 @@ func main() {
 	startingTime := time.Now()
 
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "Uso: ./main <arquivo>")
+		fmt.Fprintln(os.Stderr, "Uso: ./main <arquivo> [nome_output] [--run]")
 		os.Exit(1)
 	}
+
 	fileName := os.Args[1]
+	outputName := "output"
+	shouldRun := false
+
+	// Parse argumentos opcionais
+	for _, arg := range os.Args[2:] {
+		if arg == "--run" {
+			shouldRun = true
+		} else {
+			outputName = arg
+		}
+	}
 
 	// 1. Ler o arquivo fonte
 	source, err := os.ReadFile(fileName)
@@ -67,7 +79,6 @@ func main() {
 		}
 	}
 
-	generatedCode := ""
 	// 6. Geração de código intermediário
 	generator := icg.NewCodeGenerator()
 	intermediate := generator.GenerateFromAST(statements)
@@ -80,18 +91,29 @@ func main() {
 		os.Exit(1)
 	}
 
-	generatedCode = intermediate.GenerateLLVM()
+	generatedCode := intermediate.GenerateLLVM()
 	fmt.Println("\n; Generated LLVM IR")
 	fmt.Println(generatedCode)
 
-	// 7. Salvar o código LLVM em arquivo
-	if err := os.WriteFile("output.ll", []byte(generatedCode), 0777); err != nil {
-		fmt.Fprintf(os.Stderr, "Erro ao escrever output.ll: %v\n", err)
+	// 7. Salvar .ll
+	tmpFile, err := os.CreateTemp("", outputName+"-*.ll")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao criar arquivo temporário LLVM IR: %v\n", err)
 		os.Exit(1)
 	}
-
-	// 8. Executar llc para gerar o arquivo assembly
-	cmdLLC := exec.Command("llc", "output.ll", "-o", "output.s")
+	defer os.Remove(tmpFile.Name()) // Remove o arquivo temporário ao final
+	
+	if _, err := tmpFile.Write([]byte(generatedCode)); err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao escrever no arquivo temporário: %v\n", err)
+		os.Exit(1)
+	}
+	tmpFile.Close()
+	
+	llFile := tmpFile.Name()
+	
+	// 8. Gerar assembly com llc
+	asmFile := outputName + ".s"
+	cmdLLC := exec.Command("llc", llFile, "-o", asmFile)
 	cmdLLC.Stdout = os.Stdout
 	cmdLLC.Stderr = os.Stderr
 	if err := cmdLLC.Run(); err != nil {
@@ -100,7 +122,7 @@ func main() {
 	}
 
 	// 9. Compilar com gcc -no-pie
-	cmdGCC := exec.Command("gcc", "-no-pie", "output.s", "-o", "output")
+	cmdGCC := exec.Command("gcc", "-no-pie", asmFile, "-o", outputName)
 	cmdGCC.Stdout = os.Stdout
 	cmdGCC.Stderr = os.Stderr
 	if err := cmdGCC.Run(); err != nil {
@@ -108,24 +130,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 10. Executar o binário gerado
-	fmt.Println("\n🔹 Saída do programa:")
-	cmdExec := exec.Command("./output")
-	out, err := cmdExec.CombinedOutput()
-	fmt.Print(string(out)) // Mostra stdout e stderr do programa
-	/* saida do codigo do programa omitida, for now
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			// Código de saída do programa, tratado informativamente
-	
-			//fmt.Fprintf(os.Stderr, "⚠️ Código de saída do programa: %d\n", exitErr.ExitCode())
-			fmt.Println(exitErr)
+	// 10. Executar o binário gerado (se flag --run for usada)
+	if shouldRun {
+		fmt.Println("\n🔹 Saída do programa:")
+		cmdExec := exec.Command("./" + outputName)
+		out, _ := cmdExec.CombinedOutput()
+		fmt.Print(string(out))
+
+		// (Opcional) Erros de saída desativados como solicitado
+		/*
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				fmt.Fprintf(os.Stderr, "⚠️ Código de saída do programa: %d\n", exitErr.ExitCode())
 			} else {
-			// Outro erro inesperado (ex: não encontrou binário, permissão, etc)
-			fmt.Fprintf(os.Stderr, "Erro ao executar o programa: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Erro ao executar o programa: %v\n", err)
+			}
 		}
-	}*/
-	
+		*/
+	}
+
 	elapsed := time.Since(startingTime)
 	fmt.Printf("\n⏱️ Tempo de compilação total: %v\n", elapsed)
 }
