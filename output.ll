@@ -13,7 +13,7 @@ entry:
   ret i32 %t4
 }
 
-define i32 @main() {
+define void @main() {
 entry:
   %t5 = alloca i32 
   %t7 = sub i32 0, 10
@@ -22,7 +22,6 @@ entry:
   %t8 = load i32, i32* %t5
   %t9 = getelementptr  [4 x i8], [4 x i8]* @.str, i32 0, i32 0
   %t10 = call i32 (i8*, ...) @printf(i8* %t9, i32 %t8)
-  %t11 = load i32, i32* %t5
-  ret i32 %t11
+  ret void
 }
 

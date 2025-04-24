@@ -2,8 +2,8 @@ func sum(int a, int b) int {
     return a + b
 }
 
-func main() int {
+func main() void {
     int result = sum(2, -10)
     print(result)
-    return result
+    
 }

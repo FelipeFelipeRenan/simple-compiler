@@ -3,16 +3,19 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"sort"
+	"time"
+
 	icg "simple-compiler/intermediate-code-generation"
 	"simple-compiler/lexer"
 	"simple-compiler/parser"
 	"simple-compiler/token"
-	"sort"
-	"time"
 )
 
 func main() {
 	startingTime := time.Now()
+
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "Uso: ./main <arquivo>")
 		os.Exit(1)
@@ -66,32 +69,65 @@ func main() {
 
 	generatedCode := ""
 	// 6. Geração de código intermediário
-	if len(p.Errors) == 0 {
-		generator := icg.NewCodeGenerator()
-		intermediate := generator.GenerateFromAST(statements)
+	generator := icg.NewCodeGenerator()
+	intermediate := generator.GenerateFromAST(statements)
 
-		// Verifica erros usando o novo método GetErrors()
-		if errs := generator.GetErrors(); len(errs) > 0 {
-			fmt.Println("\nErros na geração de código:")
-			for _, err := range errs {
-				fmt.Printf("🔴 %s\n", err)
-			}
-			os.Exit(1)
+	if errs := generator.GetErrors(); len(errs) > 0 {
+		fmt.Println("\nErros na geração de código:")
+		for _, err := range errs {
+			fmt.Printf("🔴 %s\n", err)
 		}
-
-		generatedCode = intermediate.GenerateLLVM()
-		fmt.Println("\n; Generated LLVM IR")
-		fmt.Println(generatedCode)
-
+		os.Exit(1)
 	}
 
-	data := []byte(generatedCode)
-	if err := os.WriteFile("output.ll", data, 0777); err != nil {
-		panic(err)
+	generatedCode = intermediate.GenerateLLVM()
+	fmt.Println("\n; Generated LLVM IR")
+	fmt.Println(generatedCode)
+
+	// 7. Salvar o código LLVM em arquivo
+	if err := os.WriteFile("output.ll", []byte(generatedCode), 0777); err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao escrever output.ll: %v\n", err)
+		os.Exit(1)
 	}
 
+	// 8. Executar llc para gerar o arquivo assembly
+	cmdLLC := exec.Command("llc", "output.ll", "-o", "output.s")
+	cmdLLC.Stdout = os.Stdout
+	cmdLLC.Stderr = os.Stderr
+	if err := cmdLLC.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao executar llc: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 9. Compilar com gcc -no-pie
+	cmdGCC := exec.Command("gcc", "-no-pie", "output.s", "-o", "output")
+	cmdGCC.Stdout = os.Stdout
+	cmdGCC.Stderr = os.Stderr
+	if err := cmdGCC.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao compilar com gcc: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 10. Executar o binário gerado
+	fmt.Println("\n🔹 Saída do programa:")
+	cmdExec := exec.Command("./output")
+	out, err := cmdExec.CombinedOutput()
+	fmt.Print(string(out)) // Mostra stdout e stderr do programa
+	/* saida do codigo do programa omitida, for now
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			// Código de saída do programa, tratado informativamente
+	
+			//fmt.Fprintf(os.Stderr, "⚠️ Código de saída do programa: %d\n", exitErr.ExitCode())
+			fmt.Println(exitErr)
+			} else {
+			// Outro erro inesperado (ex: não encontrou binário, permissão, etc)
+			fmt.Fprintf(os.Stderr, "Erro ao executar o programa: %v\n", err)
+		}
+	}*/
+	
 	elapsed := time.Since(startingTime)
-	fmt.Printf("\nTempo de compilação: %v\n", elapsed)
+	fmt.Printf("\n⏱️ Tempo de compilação total: %v\n", elapsed)
 }
 
 func sortErrorsByPosition(errors []parser.ParseError) {
