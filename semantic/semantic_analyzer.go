@@ -1,113 +1,89 @@
-package parser
+package semantic
 
 import (
 	"fmt"
-	"simple-compiler/token"
-	"strings"
+	"simple-compiler/parser"
 )
 
-// Node representa um nó genérico da AST
-type Node interface {
-	String() string
+type Analyzer struct {
+	ast         []parser.Statement
+	symbolTable *parser.SymbolTable
+	errors      []SemanticError
 }
 
-// Expression representa expressões na AST
-type Expression interface {
-	Node
-	exprNode()
-	GetToken() token.Token
+type SemanticError struct {
+	Message string
+	Line    int
+	Token   string
 }
 
-// Statement representa comandos como atribuições
-type Statement interface {
-	Node
-	stmtNode()
-	GetToken() token.Token
+func New(ast []parser.Statement) *Analyzer {
+	return &Analyzer{
+		ast:         ast,
+		symbolTable: parser.NewSymbolTable(),
+		errors:      make([]SemanticError, 0),
+	}
 }
 
-// Identifier representa uma variável
-type Identifier struct {
-	Name  string
-	Token token.Token
+func (a *Analyzer) Analyze() []SemanticError {
+	for _, stmt := range a.ast {
+		a.checkStatement(stmt)
+	}
+	return a.errors
 }
 
-func (i *Identifier) exprNode() {}
-func (i *Identifier) String() string {
-	return fmt.Sprintf("%s", i.Name)
+func (a *Analyzer) addError(msg string, line int, token string) {
+	a.errors = append(a.errors, SemanticError{
+		Message: msg,
+		Line:    line,
+		Token:   token,
+	})
 }
 
-// Number representa um número na AST
-type Number struct {
-	Value float64
-	Token token.Token
-}
+func (a *Analyzer) checkVariableDecl(decl *parser.VariableDeclaration) {
+	// Verificação de tipo
+	switch decl.Type {
+	case "int", "float", "string", "bool":
+		// Tipos válidos
+	default:
+		a.addError(fmt.Sprintf("Tipo desconhecido: %s", decl.Type),
+			decl.GetToken().Line, decl.GetToken().Lexeme)
+	}
+	if a.symbolTable.ExistsInCurrentScope(decl.Name) {
+		a.addError(fmt.Sprintf("Variável '%s' já declarada neste escopo", decl.Name),
+			decl.Token.Line, decl.Token.Lexeme)
+	}
 
-func (n *Number) exprNode() {}
-func (n *Number) String() string {
-	return fmt.Sprintf("%v", n.Value)
-}
+	// Registra a variável
+	a.symbolTable.Declare(decl.Name, parser.SymbolInfo{
+		Type:      decl.Type,
+		Category:  parser.Variable,
+		DefinedAt: decl.Token.Line,
+	})
 
-// IfStatement representa uma estrutura condicional
-// IfStatement representa uma estrutura condicional
-type IfStatement struct {
-	Condition Expression
-	Body      *BlockStatement
-	ElseBody  *BlockStatement // Opcional
-}
-
-func (i *IfStatement) stmtNode() {}
-func (i *IfStatement) String() string {
-	var sb strings.Builder
-
-	// Condição
-	sb.WriteString("if ")
-	sb.WriteString(i.Condition.String())
-	sb.WriteString(" {\n")
-
-	// Corpo
-	if i.Body != nil {
-		for _, stmt := range i.Body.Statements {
-			sb.WriteString("    ")
-			sb.WriteString(stmt.String())
-			sb.WriteString("\n")
+	// Verifica a expressão de inicialização
+	if decl.Value != nil {
+		exprType := a.checkExpression(decl.Value)
+		if exprType != "" && !a.isCompatible(decl.Type, exprType) {
+			a.addError(fmt.Sprintf("Tipo incompatível: não é possível atribuir %s a %s",
+				exprType, decl.Type), decl.Token.Line, decl.Token.Lexeme)
 		}
 	}
-
-	sb.WriteString("}")
-	return sb.String()
 }
 
-// WhileStatement representa um loop while
-type WhileStatement struct {
-	Condition Expression
-	Body      *BlockStatement
-}
-
-func (w *WhileStatement) stmtNode() {}
-func (w *WhileStatement) String() string {
-	if w == nil {
-		return "<nil WhileStatement>"
+func (a *Analyzer) checkAssignment(assign *parser.AssignmentStatement) {
+	sym, exists := a.symbolTable.Resolve(assign.Name)
+	if !exists {
+		a.addError(fmt.Sprintf("Variável '%s' não declarada", assign.Name),
+			assign.Token.Line, assign.Token.Lexeme)
+		return
 	}
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "while (%s) {", w.Condition.String())
-
-	if w.Body != nil {
-		for _, stmt := range w.Body.Statements {
-			sb.WriteString("\n" + indent(stmt.String()))
-		}
+	exprType := a.checkExpression(assign.Value)
+	if exprType != "" && !a.isCompatible(sym.Type, exprType) {
+		a.addError(fmt.Sprintf("Tipo incompatível em atribuição: %s = %s",
+			sym.Type, exprType), assign.Token.Line, assign.Token.Lexeme)
 	}
-
-	sb.WriteString("\n}")
-	return sb.String()
-}
-
-// ForStatement representa um loop for
-type ForStatement struct {
-	Init      Statement  // Declaração ou atribuição
-	Condition Expression // Expressão booleana
-	Update    Statement  // Atribuição
-	Body      *BlockStatement
 }
 
 func (a *Analyzer) isCompatible(targetType, exprType string) bool {
@@ -214,117 +190,88 @@ func (a *Analyzer) checkStatement(stmt parser.Statement) {
 	}
 }
 
-func (es *ExpressionStatement) stmtNode() {}
-func (es *ExpressionStatement) String() string {
-	return es.Expression.String()
-}
-
-// Função auxiliar para indentação
-func indent(s string) string {
-	return "    " + strings.ReplaceAll(s, "\n", "\n    ")
-}
-
-type BlockStatement struct {
-	Statements []Statement
-}
-
-func (b *BlockStatement) stmtNode() {}
-func (b *BlockStatement) String() string {
-	var sb strings.Builder
-	for _, stmt := range b.Statements {
-		sb.WriteString(stmt.String())
+func (a *Analyzer) checkIfStatement(ifStmt *parser.IfStatement) {
+	condType := a.checkExpression(ifStmt.Condition)
+	if condType != "bool" {
+		a.addError("Condição do if deve ser booleana",
+			ifStmt.Condition.GetToken().Line, ifStmt.Condition.GetToken().Lexeme)
 	}
-	return sb.String()
-}
 
-type BooleanLiteral struct {
-	Value bool
-	Token token.Token
-}
+	a.symbolTable.PushScope()
+	if ifStmt.Body != nil {
+		a.checkBlockStatement(ifStmt.Body)
+	}
+	a.symbolTable.PopScope()
 
-func (b *BooleanLiteral) exprNode()             {}
-func (b *BooleanLiteral) String() string        { return fmt.Sprintf("%v", b.Value) }
-func (b *BooleanLiteral) GetToken() token.Token { return b.Token }
-
-type StringLiteral struct {
-	Value string
-	Token token.Token
-}
-
-func (s *StringLiteral) exprNode()             {}
-func (s *StringLiteral) String() string        { return fmt.Sprintf("\"%s\"", s.Value) }
-func (s *StringLiteral) GetToken() token.Token { return s.Token }
-
-// BinaryExpression
-func (b *BinaryExpression) GetToken() token.Token {
-	return token.Token{
-		Type:   tokenTypeFromOperator(b.Operator),
-		Lexeme: b.Operator,
+	if ifStmt.ElseBody != nil {
+		a.symbolTable.PushScope()
+		a.checkBlockStatement(ifStmt.ElseBody)
+		a.symbolTable.PopScope()
 	}
 }
 
-type UnaryExpression struct {
-    Operator string
-    Right    Expression
-    Token    token.Token
-}
+func (a *Analyzer) checkBinaryExpr(expr *parser.BinaryExpression) string {
+	leftType := a.checkExpression(expr.Left)
+	rightType := a.checkExpression(expr.Right)
 
-func (u *UnaryExpression) exprNode() {}
-func (u *UnaryExpression) String() string {
-    return fmt.Sprintf("(%s%s)", u.Operator, u.Right.String())
-}
-func (u *UnaryExpression) GetToken() token.Token {
-    return u.Token
-}
+	switch expr.Operator {
+	case "+", "-", "*", "/":
+		if !a.isNumeric(leftType) || !a.isNumeric(rightType) {
+			a.addError(fmt.Sprintf("Operação numérica inválida entre %s e %s",
+				leftType, rightType), expr.Token.Line, expr.Token.Lexeme)
+			return ""
+		}
+		return a.resultType(leftType, rightType)
 
-// Number
-func (n *Number) GetToken() token.Token {
-	lexeme := fmt.Sprintf("%v", n.Value)
-	if n.Value == float64(int(n.Value)) {
-		lexeme = fmt.Sprintf("%d", int(n.Value))
-	}
-	return token.Token{
-		Type:   token.NUMBER,
-		Lexeme: lexeme,
-	}
-}
+	case ">", "<", ">=", "<=", "==", "!=":
+		if !a.isCompatible(leftType, rightType) {
+			a.addError(fmt.Sprintf("Comparação inválida entre %s e %s",
+				leftType, rightType), expr.Token.Line, expr.Token.Lexeme)
+		}
+		return "bool"
 
-// Identifier
-func (i *Identifier) GetToken() token.Token {
-	return token.Token{
-		Type:   token.IDENTIFIER,
-		Lexeme: i.Name,
-	}
-}
+	case "&&", "||":
+		if leftType != "bool" || rightType != "bool" {
+			a.addError("Operadores lógicos exigem operandos booleanos",
+				expr.Token.Line, expr.Token.Lexeme)
+		}
+		return "bool"
 
-// IfStatement
-func (i *IfStatement) GetToken() token.Token {
-	return token.Token{
-		Type:   token.IF,
-		Lexeme: "if",
+	default:
+		a.addError(fmt.Sprintf("Operador desconhecido: %s", expr.Operator),
+			expr.Token.Line, expr.Token.Lexeme)
+		return ""
 	}
 }
 
-// WhileStatement
-func (w *WhileStatement) GetToken() token.Token {
-	return token.Token{
-		Type:   token.WHILE,
-		Lexeme: "while",
+func (a *Analyzer) checkBlockStatement(block *parser.BlockStatement) {
+	if block == nil {
+		return
 	}
+	a.symbolTable.PushScope()
+	for _, stmt := range block.Statements {
+		a.checkStatement(stmt)
+	}
+	a.symbolTable.PopScope()
 }
 
-// ForStatement
-func (f *ForStatement) GetToken() token.Token {
-	return token.Token{
-		Type:   token.FOR,
-		Lexeme: "for",
+func (a *Analyzer) checkWhileStatement(whileStmt *parser.WhileStatement) {
+	condType := a.checkExpression(whileStmt.Condition)
+	if condType != "bool" {
+		a.addError("Condição do while deve ser booleana",
+			whileStmt.Condition.GetToken().Line, whileStmt.Condition.GetToken().Lexeme)
 	}
+
+	a.symbolTable.PushScope()
+	if whileStmt.Body != nil {
+		a.checkBlockStatement(whileStmt.Body)
+	}
+	a.symbolTable.PopScope()
 }
 
-// BlockStatement
-func (b *BlockStatement) GetToken() token.Token {
-	if len(b.Statements) > 0 {
-		return b.Statements[0].GetToken()
+func (a *Analyzer) checkForStatement(forStmt *parser.ForStatement) {
+	if forStmt.Init != nil {
+		a.checkStatement(forStmt.Init)
 	}
 
 	if forStmt.Condition != nil {
