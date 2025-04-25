@@ -4,6 +4,10 @@ func sum(int a, int b) int {
 
 func main() void {
     int result = sum(2, -10)
+    string teste = "teste"
+    print(teste)
     print(result)
-    
+    if(result < 0){
+        print("negativo")
+    }
 }

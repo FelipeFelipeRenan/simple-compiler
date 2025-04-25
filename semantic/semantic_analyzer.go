@@ -383,33 +383,16 @@ func (a *Analyzer) isBuiltinFunction(name string) bool {
 	return name == "print"
 }
 
-func (a *Analyzer) checkCallExpression(call *parser.CallExpression) string {
-	if call.FunctionName == "print" {
-		if len(call.Arguments) != 1 {
-			a.addError("print requer exatamente 1 argumento", call.Token.Line, call.Token.Lexeme)
-		} else {
-			argType := a.checkExpression(call.Arguments[0])
-			if argType != "int" && argType != "float" {
-				a.addError(fmt.Sprintf("print só suporta int ou float, recebeu %s", argType),
-					call.Token.Line, call.Token.Lexeme)
-			}
-		}
-		return "void"
-	}
-	// ... resto da implementação original
-	return ""
-}
-
-
-func (a *Analyzer) checkPrintCall(call *parser.CallExpression) {
+func (a *Analyzer) checkPrintCall(call *parser.CallExpression) string {
     if len(call.Arguments) != 1 {
         a.addError("print requer exatamente 1 argumento", call.Token.Line, call.Token.Lexeme)
-        return
+        return ""
     }
     
     argType := a.checkExpression(call.Arguments[0])
-    if argType != "int" && argType != "float" {
-        a.addError(fmt.Sprintf("print só suporta int ou float, recebeu %s", argType),
+    if argType != "int" && argType != "float" && argType != "string" {
+        a.addError(fmt.Sprintf("print só suporta int, float ou string, recebeu %s", argType),
             call.Token.Line, call.Token.Lexeme)
     }
+    return "void"
 }

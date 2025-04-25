@@ -13,6 +13,7 @@ type CodeGenerator struct {
 	currentBlock *BasicBlock
 	tempCounter  int
 	labelCounter int
+	stringCounter int
 	errors       []string // Campo errors adicionado
 
 }
@@ -29,6 +30,7 @@ func NewCodeGenerator() *CodeGenerator {
 		symbolTable:  make(map[string]VariableInfo),
 		tempCounter:  0,
 		labelCounter: 0,
+		stringCounter: 0,
 		errors:       make([]string, 0),
 	}
 
@@ -83,45 +85,55 @@ func (cg *CodeGenerator) generateStatement(stmt parser.Statement) {
 		cg.generateReturnStatement(s)
 	case *parser.BlockStatement:
 		cg.generateBlock(s)
-    case *parser.ExpressionStatement:
-        if call, ok := s.Expression.(*parser.CallExpression); ok && call.FunctionName == "print" {
-            cg.generatePrintCall(call)
-        } else {
-            cg.generateExpression(s.Expression)
-        }
+	case *parser.ExpressionStatement:
+		if call, ok := s.Expression.(*parser.CallExpression); ok && call.FunctionName == "print" {
+			cg.generatePrintCall(call)
+		} else {
+			cg.generateExpression(s.Expression)
+		}
 	}
 }
 
 func (cg *CodeGenerator) generateVariableDecl(decl *parser.VariableDeclaration, initializeOnly bool) {
-	llvmType := cg.llvmTypeFromParserType(decl.Type)
-	alloca := cg.newTemp()
+    llvmType := cg.llvmTypeFromParserType(decl.Type)
+    alloca := cg.newTemp()
 
-	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-		Op:   "alloca",
-		Type: llvmType,
-		Dest: alloca,
-	})
+    // Para strings, usamos i8* no lugar do tipo original
+    storageType := llvmType
+    if decl.Type == "string" {
+        storageType = "i8*"
+    }
 
-	cg.symbolTable[decl.Name] = VariableInfo{
-		Alloca: alloca,
-		Type:   llvmType,
-	}
+    cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+        Op:   "alloca",
+        Type: storageType,
+        Dest: alloca,
+    })
 
-	if decl.Value != nil {
-		val := cg.generateExpression(decl.Value)
-		cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-			Op:   "store",
-			Type: llvmType,
-			Args: []string{val, string(llvmType) + "*", alloca},
-		})
-	} else if initializeOnly {
-		// Inicializa com valor padrão
-		cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-			Op:   "store",
-			Type: llvmType,
-			Args: []string{"0", string(llvmType) + "*", alloca},
-		})
-	}
+    cg.symbolTable[decl.Name] = VariableInfo{
+        Alloca: alloca,
+        Type:   llvmType, // Mantemos o tipo original na tabela de símbolos
+    }
+
+    if decl.Value != nil {
+        val := cg.generateExpression(decl.Value)
+        cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+            Op:   "store",
+            Type: storageType,
+            Args: []string{val, string(storageType) + "*", alloca},
+        })
+    } else if initializeOnly {
+        // Inicializa com valor padrão
+        defaultVal := "0"
+        if decl.Type == "string" {
+            defaultVal = "null"
+        }
+        cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+            Op:   "store",
+            Type: storageType,
+            Args: []string{defaultVal, string(storageType) + "*", alloca},
+        })
+    }
 }
 
 func (cg *CodeGenerator) generateAssignment(assign *parser.AssignmentStatement) {
@@ -140,6 +152,8 @@ func (cg *CodeGenerator) generateAssignment(assign *parser.AssignmentStatement) 
 
 func (cg *CodeGenerator) generateExpression(expr parser.Expression) string {
 	switch e := expr.(type) {
+	case *parser.StringLiteral:
+        return cg.generateStringLiteral(e)
 	case *parser.Identifier:
 		return cg.generateIdentifier(e)
 	case *parser.Number:
@@ -158,19 +172,30 @@ func (cg *CodeGenerator) generateExpression(expr parser.Expression) string {
 }
 
 func (cg *CodeGenerator) generateIdentifier(ident *parser.Identifier) string {
-	info, exists := cg.symbolTable[ident.Name]
-	if !exists {
-		return "0"
-	}
+    info, exists := cg.symbolTable[ident.Name]
+    if !exists {
+        return "0"
+    }
 
-	temp := cg.newTemp()
-	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-		Op:   "load",
-		Type: info.Type,
-		Args: []string{string(info.Type) + "*", info.Alloca},
-		Dest: temp,
-	})
-	return temp
+    temp := cg.newTemp()
+    
+    // Tratamento especial para strings
+    if info.Type == "string" {
+        cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+            Op:   "load",
+            Type: "i8*",
+            Args: []string{"i8**", info.Alloca},
+            Dest: temp,
+        })
+    } else {
+        cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+            Op:   "load",
+            Type: info.Type,
+            Args: []string{string(info.Type) + "*", info.Alloca},
+            Dest: temp,
+        })
+    }
+    return temp
 }
 
 func (cg *CodeGenerator) generateNumber(num *parser.Number) string {
@@ -358,35 +383,35 @@ func (cg *CodeGenerator) generateTypeConversion(value string, fromType, toType T
 }
 
 func (cg *CodeGenerator) generateCallExpr(call *parser.CallExpression) string {
-    if call.FunctionName == "print" {
-        if len(call.Arguments) != 1 {
-            cg.AddError("print requer exatamente 1 argumento")
-            return "0"
-        }
-        
-        arg := cg.generateExpression(call.Arguments[0])
-        argType := cg.determineType(call.Arguments[0])
-        
-        fmtStr := cg.newTemp()
-        formatStr := "@.str" // padrão para int
-        if argType == FLOAT {
-            formatStr = "@.strf"
-        }
-        
-        cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-            Op:   "getelementptr",
-            Dest: fmtStr,
-            Args: []string{fmt.Sprintf("[4 x i8], [4 x i8]* %s, i32 0, i32 0", formatStr)},
-        })
-        
-        cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-            Op:   "call",
-            Type: I32,
-            Args: []string{fmt.Sprintf("i32 (i8*, ...) @printf(i8* %s, %s %s)", fmtStr, argType, arg)},
-        })
-        
-        return "0"
-    }
+	if call.FunctionName == "print" {
+		if len(call.Arguments) != 1 {
+			cg.AddError("print requer exatamente 1 argumento")
+			return "0"
+		}
+
+		arg := cg.generateExpression(call.Arguments[0])
+		argType := cg.determineType(call.Arguments[0])
+
+		fmtStr := cg.newTemp()
+		formatStr := "@.str" // padrão para int
+		if argType == FLOAT {
+			formatStr = "@.strf"
+		}
+
+		cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+			Op:   "getelementptr",
+			Dest: fmtStr,
+			Args: []string{fmt.Sprintf("[4 x i8], [4 x i8]* %s, i32 0, i32 0", formatStr)},
+		})
+
+		cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+			Op:   "call",
+			Type: I32,
+			Args: []string{fmt.Sprintf("i32 (i8*, ...) @printf(i8* %s, %s %s)", fmtStr, argType, arg)},
+		})
+
+		return "0"
+	}
 	// Restante da implementação original...
 	temp := cg.newTemp()
 	args := make([]string, len(call.Arguments))
@@ -650,6 +675,8 @@ func (cg *CodeGenerator) generateFunctionDecl(decl *parser.FunctionDeclaration) 
 
 func (cg *CodeGenerator) determineType(expr parser.Expression) Type {
 	switch e := expr.(type) {
+	case *parser.StringLiteral:
+		return I8
 	case *parser.Number:
 		if e.Value == float64(int(e.Value)) {
 			return I32
@@ -682,6 +709,8 @@ func (cg *CodeGenerator) llvmTypeFromParserType(t string) Type {
 		return FLOAT
 	case "bool":
 		return I1
+	case "string":
+        return I8
 	default:
 		return I32
 	}
@@ -736,19 +765,29 @@ func (cg *CodeGenerator) getFunctionReturnType(funcName string) Type {
 }
 
 func (cg *CodeGenerator) addPrintfSupport() {
-    // Declaração da função printf
-    cg.ir.GlobalVars = append(cg.ir.GlobalVars, Instruction{
-        Op:    "declare",
-        Args:  []string{"i32 @printf(i8*, ...)"},
-    })
-    
-    // String de formato para inteiros (%d\n)
-    cg.ir.GlobalVars = append(cg.ir.GlobalVars, Instruction{
-        Op:    "@.str",
-        Args:  []string{"= private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\", align 1"},
-    })
-}
+	cg.ir.GlobalVars = append(cg.ir.GlobalVars, Instruction{
+		Op:   "declare",
+		Args: []string{"i32 @printf(i8*, ...)"},
+	})
 
+	// Formato para inteiros
+	cg.ir.GlobalVars = append(cg.ir.GlobalVars, Instruction{
+		Op:   "@.str.int",
+		Args: []string{"= private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\", align 1"},
+	})
+
+	// Formato para floats
+	cg.ir.GlobalVars = append(cg.ir.GlobalVars, Instruction{
+		Op:   "@.str.float",
+		Args: []string{"= private unnamed_addr constant [4 x i8] c\"%f\\0A\\00\", align 1"},
+	})
+
+	// Formato para strings
+	cg.ir.GlobalVars = append(cg.ir.GlobalVars, Instruction{
+		Op:   "@.str.str",
+		Args: []string{"= private unnamed_addr constant [4 x i8] c\"%s\\0A\\00\", align 1"},
+	})
+}
 func (cg *CodeGenerator) generatePrintCall(call *parser.CallExpression) {
     if len(call.Arguments) != 1 {
         cg.AddError("print requer exatamente 1 argumento")
@@ -758,9 +797,22 @@ func (cg *CodeGenerator) generatePrintCall(call *parser.CallExpression) {
     arg := cg.generateExpression(call.Arguments[0])
     argType := cg.determineType(call.Arguments[0])
     
-    formatStr := "@.str"
-    if argType == FLOAT {
-        formatStr = "@.strf"
+    var formatStr string
+    var argTypeStr string
+    
+    switch argType {
+    case I32:
+        formatStr = "@.str.int"
+        argTypeStr = "i32"
+    case FLOAT:
+        formatStr = "@.str.float"
+        argTypeStr = "float"
+    case "i8*":
+        formatStr = "@.str.str"
+        argTypeStr = "i8*"
+    default:
+        cg.AddError(fmt.Sprintf("Tipo não suportado para print: %s", argType))
+        return
     }
     
     fmtPtr := cg.newTemp()
@@ -770,46 +822,34 @@ func (cg *CodeGenerator) generatePrintCall(call *parser.CallExpression) {
         Args: []string{fmt.Sprintf("[4 x i8], [4 x i8]* %s, i32 0, i32 0", formatStr)},
     })
     
-    // Adiciona um nome temporário para o resultado da chamada
+    // Adiciona a chamada ao printf com uma variável temporária para o resultado
     callResult := cg.newTemp()
     cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
         Op:   "call",
-        Dest: callResult,  // Adiciona o destino aqui
+        Dest: callResult,
         Type: I32,
-        Args: []string{fmt.Sprintf("i32 (i8*, ...) @printf(i8* %s, %s %s)", fmtPtr, argType, arg)},
+        Args: []string{fmt.Sprintf("i32 (i8*, ...) @printf(i8* %s, %s %s)", fmtPtr, argTypeStr, arg)},
     })
 }
 
-func (cg *CodeGenerator) generatePrintInt(value string) {
-	// Carrega o formato para inteiro
-	fmtStr := cg.newTemp()
-	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-		Op:   "getelementptr",
-		Dest: fmtStr,
-		Args: []string{"[4 x i8], [4 x i8]* @.str, i32 0, i32 0"},
-	})
-
-	// Gera a chamada para printf
-	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-		Op:   "call",
-		Type: I32,
-		Args: []string{fmt.Sprintf("i32 (i8*, ...) @printf(i8* %s, i32 %s)", fmtStr, value)},
-	})
-}
-
-func (cg *CodeGenerator) generatePrintFloat(value string) {
-	// Carrega o formato para float
-	fmtStr := cg.newTemp()
-	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-		Op:   "getelementptr",
-		Dest: fmtStr,
-		Args: []string{"[4 x i8], [4 x i8]* @.strf, i32 0, i32 0"},
-	})
-
-	// Gera a chamada para printf
-	cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
-		Op:   "call",
-		Type: I32,
-		Args: []string{fmt.Sprintf("i32 (i8*, ...) @printf(i8* %s, float %s)", fmtStr, value)},
-	})
+func (cg *CodeGenerator) generateStringLiteral(str *parser.StringLiteral) string {
+    strName := fmt.Sprintf("@.str.%d", cg.stringCounter)
+    cg.stringCounter++
+    
+    strValue := str.Value + "\\00"
+    strLen := len(str.Value) + 1
+    
+    cg.ir.GlobalVars = append(cg.ir.GlobalVars, Instruction{
+        Op:    strName,
+        Args:  []string{fmt.Sprintf("= private unnamed_addr constant [%d x i8] c\"%s\", align 1", strLen, strValue)},
+    })
+    
+    temp := cg.newTemp()
+    cg.currentBlock.Instructions = append(cg.currentBlock.Instructions, Instruction{
+        Op:   "getelementptr",
+        Dest: temp,
+        Args: []string{fmt.Sprintf("[%d x i8], [%d x i8]* %s, i32 0, i32 0", strLen, strLen, strName)},
+    })
+    
+    return temp
 }
