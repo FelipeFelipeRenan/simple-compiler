@@ -12,6 +12,7 @@ const (
 	FLOAT Type = "float"
 	I1    Type = "i1"
 	VOID  Type = "void"
+	I8 Type = "i8*"
 )
 
 type Instruction struct {
