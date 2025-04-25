@@ -407,4 +407,3 @@ func (c *CallExpression) String() string {
     }
     return fmt.Sprintf("%s(%s)", c.FunctionName, strings.Join(args, ", "))
 }
-

@@ -2,6 +2,8 @@
 
 Este projeto é um compilador simples desenvolvido em Go, com suporte básico à análise léxica, análise sintática, geração de AST e geração de código intermediário em LLVM IR. O compilador é capaz de compilar uma linguagem imperativa básica e gerar executáveis reais via `llc` e `gcc`.
 
+[![FelipeFelipeRenan/simple-compiler context](https://badge.forgithub.com/FelipeFelipeRenan/simple-compiler)](https://uithub.com/FelipeFelipeRenan/simple-compiler)
+
 ---
 
 ## 🧱 Funcionalidades
