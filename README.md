@@ -1,23 +1,52 @@
 # Simple Compiler
+
+Este projeto é um compilador simples desenvolvido em Go, com suporte básico à análise léxica, análise sintática, geração de AST e geração de código intermediário em LLVM IR. O compilador é capaz de compilar uma linguagem imperativa básica e gerar executáveis reais via `llc` e `gcc`.
+
 [![FelipeFelipeRenan/simple-compiler context](https://badge.forgithub.com/FelipeFelipeRenan/simple-compiler)](https://uithub.com/FelipeFelipeRenan/simple-compiler)
-## How to run
 
-First of all, download the source code of the compiler, then run the command: 
+---
 
+## 🧱 Funcionalidades
+
+- Analisador léxico
+- Parser com geração de AST
+- Tipagem básica (`int`, `void`)
+- Funções (`func`), chamadas e retorno
+- Comandos de controle (`while`, `return`)
+- Geração de código LLVM IR intermediário
+- Integração com `llc` e `gcc` para gerar binários executáveis
+- Suporte à função `print()` mapeada para `printf` do C
+
+---
+
+## 📦 Requisitos
+
+- [Go](https://golang.org) 1.18 ou superior
+- [LLVM](https://llvm.org) com `llc` instalado
+- [GCC](https://gcc.gnu.org) para gerar o executável final
+
+---
+
+## 🚀 Como usar
+
+### Compilar e rodar um programa:
 ```bash
-go build cmd/main.go
+go run cmd/main.go input.txt --run
 ```
-and after that, run the command:
+### Compilar e gerar o executável sem executar
 ```bash
-./main <file_to_parse>
-```
-to build the compiler and generate the binary or:
-
-```bash
-go run xmd/main.go <file_to_parse>
+go run cmd/main.go input.txt meu_programa
 ```
 
-Or if you're want to install the compiler at a linux machine, just run 
-``` bash
-go install cmd/main.go
+
+## Exemplo de código-fonte
+```go
+func sum(int a, int b) int {
+    return a + b
+}
+
+func main() void {
+    int result = sum(2, -10)
+    print(result)
+}
 ```
