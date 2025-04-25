@@ -65,6 +65,8 @@ var keywords = map[string]token.TokenType{
 	"true":   token.BOOLEAN,
 	"false":  token.BOOLEAN,
 	"func":   token.FUNC,
+	"print":  token.PRINT, // print é tratado como identificador especial
+
 }
 
 func (l *Lexer) readIdentifier() string {
