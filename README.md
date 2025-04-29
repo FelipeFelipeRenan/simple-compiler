@@ -1,46 +1,66 @@
 # Simple Compiler
 
-Este projeto é um compilador simples desenvolvido em Go, com suporte básico à análise léxica, análise sintática, geração de AST e geração de código intermediário em LLVM IR. O compilador é capaz de compilar uma linguagem imperativa básica e gerar executáveis reais via `llc` e `gcc`.
-
-[![FelipeFelipeRenan/simple-compiler context](https://badge.forgithub.com/FelipeFelipeRenan/simple-compiler)](https://uithub.com/FelipeFelipeRenan/simple-compiler)
+Este é um compilador simples desenvolvido em Go que traduz uma linguagem imperativa básica para LLVM IR, permitindo gerar executáveis reais utilizando `llc` e `gcc`. O projeto tem fins didáticos e demonstra de forma modular os principais estágios de um compilador: análise léxica, análise sintática, geração de AST e código intermediário.
 
 ---
 
-## 🧱 Funcionalidades
+## 🧠 Funcionalidades
 
-- Analisador léxico
-- Parser com geração de AST
-- Tipagem básica (`int`, `void`)
-- Funções (`func`), chamadas e retorno
-- Comandos de controle (`while`, `return`)
-- Geração de código LLVM IR intermediário
-- Integração com `llc` e `gcc` para gerar binários executáveis
-- Suporte à função `print()` mapeada para `printf` do C
-
----
-
-## 📦 Requisitos
-
-- [Go](https://golang.org) 1.18 ou superior
-- [LLVM](https://llvm.org) com `llc` instalado
-- [GCC](https://gcc.gnu.org) para gerar o executável final
+- ✅ Análise léxica com geração de tokens
+- ✅ Análise sintática e construção de AST
+- ✅ Geração de código LLVM IR
+- ✅ Integração com `llc` para gerar assembly
+- ✅ Compilação final com `gcc -no-pie`
+- ✅ Execução opcional do binário
+- ✅ Suporte a `int`, `void`, `func`, `while`, `return`, `print`
 
 ---
 
-## 🚀 Como usar
+## 📁 Estrutura do projeto
 
-### Compilar e rodar um programa:
-```bash
-go run cmd/main.go input.txt --run
 ```
-### Compilar e gerar o executável sem executar
+simple-compiler/
+├── cmd/
+│   └── main.go                      # Entrada principal do compilador
+├── lexer/                           # Analisador léxico
+├── parser/                          # Parser e AST
+├── intermediate-code-generation/   # Gerador de LLVM IR
+├── token/                           # Definição dos tokens
+└── input.txt                        # Código de entrada exemplo
+```
+
+---
+
+## ⚙️ Requisitos
+
+- [Go](https://golang.org/dl/) 1.18 ou superior
+- [LLVM](https://llvm.org/) com `llc` disponível no PATH
+- [GCC](https://gcc.gnu.org/) com suporte a `-no-pie`
+
+---
+
+## 🚀 Como compilar e executar
+
+### Compilar e gerar executável (sem rodar):
 ```bash
 go run cmd/main.go input.txt meu_programa
 ```
 
+### Compilar e executar:
+```bash
+go run cmd/main.go input.txt meu_programa --run
+```
 
-## Exemplo de código-fonte
-```go
+### Somente compilar (gera binário como `output` por padrão):
+```bash
+go run cmd/main.go input.txt
+```
+
+---
+
+## 💻 Exemplo de código fonte (`input.txt`)
+
+```c
 func sum(int a, int b) int {
     return a + b
 }
@@ -50,3 +70,26 @@ func main() void {
     print(result)
 }
 ```
+
+---
+
+## 📦 Saída
+
+O compilador irá:
+
+1. Gerar arquivos `.ll` e `.s` temporários
+2. Compilar o código em um binário com nome definido (ou `output` se não especificado)
+3. Opcionalmente, executar o binário se `--run` for fornecido
+
+---
+
+## 🛠️ Melhorias futuras
+
+- [ ] Suporte a estruturas condicionais (`if`, `else`)
+- [ ] Análise semântica completa
+- [ ] Tipos adicionais (bool, float, string)
+- [ ] Suporte a escopos e funções aninhadas
+- [ ] Otimizações no LLVM IR
+
+---
+
