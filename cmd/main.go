@@ -111,42 +111,21 @@ func main() {
 	
 	llFile := tmpFile.Name()
 	
-	// 8. Gerar assembly com llc
-	asmFile := outputName + ".s"
-	cmdLLC := exec.Command("llc", llFile, "-o", asmFile)
-	cmdLLC.Stdout = os.Stdout
-	cmdLLC.Stderr = os.Stderr
-	if err := cmdLLC.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Erro ao executar llc: %v\n", err)
+	// 8. Compilar diretamente para executável usando clang
+	cmdClang := exec.Command("clang", llFile, "-o", outputName)
+	cmdClang.Stdout = os.Stdout
+	cmdClang.Stderr = os.Stderr
+	if err := cmdClang.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Erro ao compilar com clang: %v\n", err)
 		os.Exit(1)
 	}
 
-	// 9. Compilar com gcc -no-pie
-	cmdGCC := exec.Command("gcc", "-no-pie", asmFile, "-o", outputName)
-	cmdGCC.Stdout = os.Stdout
-	cmdGCC.Stderr = os.Stderr
-	if err := cmdGCC.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Erro ao compilar com gcc: %v\n", err)
-		os.Exit(1)
-	}
-
-	// 10. Executar o binário gerado (se flag --run for usada)
+	// 9. Executar o binário gerado (se flag --run for usada)
 	if shouldRun {
 		fmt.Println("\n🔹 Saída do programa:")
 		cmdExec := exec.Command("./" + outputName)
 		out, _ := cmdExec.CombinedOutput()
 		fmt.Print(string(out))
-
-		// (Opcional) Erros de saída desativados como solicitado
-		/*
-		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				fmt.Fprintf(os.Stderr, "⚠️ Código de saída do programa: %d\n", exitErr.ExitCode())
-			} else {
-				fmt.Fprintf(os.Stderr, "Erro ao executar o programa: %v\n", err)
-			}
-		}
-		*/
 	}
 
 	elapsed := time.Since(startingTime)

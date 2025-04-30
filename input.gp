@@ -10,4 +10,13 @@ func main() void {
     if(result < 0){
         print("negativo")
     }
+    int x = 10
+    while(x > 0){
+        print(x)
+        x = x - 1
+    }
+    print("fim")
+    for(int i = 0; i < 10; i = i + 1){
+        print(i)
+    }
 }
