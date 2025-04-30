@@ -57,7 +57,10 @@ go run cmd/main.go input.txt
 ```
 
 ---
-
+### Rodar utilizando a build do compilador
+```bash
+./gopher <mesmas opções acima>
+```
 ## 💻 Exemplo de código fonte (`input.txt`)
 
 ```c
