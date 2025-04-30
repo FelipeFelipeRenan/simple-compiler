@@ -9,8 +9,7 @@ Este é um compilador simples desenvolvido em Go que traduz uma linguagem impera
 - ✅ Análise léxica com geração de tokens
 - ✅ Análise sintática e construção de AST
 - ✅ Geração de código LLVM IR
-- ✅ Integração com `llc` para gerar assembly
-- ✅ Compilação final com `gcc -no-pie`
+- ✅ Integração com `clang` para gerar assembly e geração do arquivo executável
 - ✅ Execução opcional do binário
 - ✅ Suporte a `int`, `void`, `func`, `while`, `return`, `print`
 
@@ -35,7 +34,7 @@ simple-compiler/
 
 - [Go](https://golang.org/dl/) 1.18 ou superior
 - [LLVM](https://llvm.org/) com `llc` disponível no PATH
-- [GCC](https://gcc.gnu.org/) com suporte a `-no-pie`
+- [Clang](https://clang.llvm.org/) na sua ultima versão
 
 ---
 
@@ -80,7 +79,7 @@ func main() void {
 
 O compilador irá:
 
-1. Gerar arquivos `.ll` e `.s` temporários
+1. Gerar arquivos `.ll` temporários
 2. Compilar o código em um binário com nome definido (ou `output` se não especificado)
 3. Opcionalmente, executar o binário se `--run` for fornecido
 
